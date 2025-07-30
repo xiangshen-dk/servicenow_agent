@@ -1,0 +1,66 @@
+# AgentSpace deployment configuration
+apiVersion: agents.google.com/v1
+kind: Agent
+metadata:
+  name: servicenow-agent
+  namespace: default
+spec:
+  displayName: ServiceNow Agent
+  description: AI agent for managing ServiceNow records through natural language
+  
+  # Container configuration
+  container:
+    image: gcr.io/${PROJECT_ID}/servicenow-agent:latest
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    
+    # Environment variables from secrets
+    env:
+      - name: SERVICENOW_INSTANCE_URL
+        valueFrom:
+          secretKeyRef:
+            name: servicenow-credentials
+            key: instance_url
+      - name: SERVICENOW_USERNAME
+        valueFrom:
+          secretKeyRef:
+            name: servicenow-credentials
+            key: username
+      - name: SERVICENOW_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: servicenow-credentials
+            key: password
+      - name: LOG_LEVEL
+        value: "INFO"
+  
+  # Agent capabilities
+  capabilities:
+    - name: servicenow_crud
+      description: Perform CRUD operations on ServiceNow records
+      permissions:
+        - resource: servicenow.tables.*
+          actions: ["create", "read", "update", "delete"]
+  
+  # Monitoring and health checks
+  monitoring:
+    enabled: true
+    metrics:
+      - name: crud_operations_total
+        type: counter
+        description: Total number of CRUD operations performed
+      - name: crud_operations_errors
+        type: counter
+        description: Total number of failed CRUD operations
+  
+  healthCheck:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 30
