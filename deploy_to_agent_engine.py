@@ -153,6 +153,100 @@ def create_agent_for_deployment():
     return create_servicenow_agent()
 
 
+def get_service_account_email(project_id: str, location: str) -> str:
+    """Get the service account email for the Agent Engine."""
+    # The service account format for Agent Engine
+    project_number = get_project_number(project_id)
+    return f"service-{project_number}@gcp-sa-aiplatform-re.iam.gserviceaccount.com"
+
+
+def get_project_number(project_id: str) -> str:
+    """Get the project number from project ID."""
+    from google.cloud import resourcemanager_v3
+    
+    client = resourcemanager_v3.ProjectsClient()
+    project = client.get_project(name=f"projects/{project_id}")
+    return project.name.split('/')[-1]  # Extract project number from name
+
+
+def grant_secret_access(project_id: str, service_account_email: str, secret_id: str) -> None:
+    """Grant the service account access to the secret."""
+    from google.cloud import secretmanager
+    from google.iam.v1 import iam_policy_pb2, policy_pb2
+    
+    client = secretmanager.SecretManagerServiceClient()
+    secret_name = f"projects/{project_id}/secrets/{secret_id}"
+    
+    try:
+        # Get the current IAM policy
+        policy = client.get_iam_policy(request={"resource": secret_name})
+        
+        # Add the service account with secretAccessor role
+        binding = policy_pb2.Binding()
+        binding.role = "roles/secretmanager.secretAccessor"
+        binding.members.append(f"serviceAccount:{service_account_email}")
+        
+        # Check if binding already exists
+        existing_binding = None
+        for b in policy.bindings:
+            if b.role == binding.role:
+                existing_binding = b
+                break
+        
+        if existing_binding:
+            # Add member to existing binding if not already present
+            if f"serviceAccount:{service_account_email}" not in existing_binding.members:
+                existing_binding.members.append(f"serviceAccount:{service_account_email}")
+                logger.info(f"Added {service_account_email} to existing binding for {secret_id}")
+            else:
+                logger.info(f"{service_account_email} already has access to {secret_id}")
+        else:
+            # Add new binding
+            policy.bindings.append(binding)
+            logger.info(f"Created new binding for {service_account_email} to access {secret_id}")
+        
+        # Update the policy
+        client.set_iam_policy(request={"resource": secret_name, "policy": policy})
+        logger.info(f"Successfully granted Secret Manager access to {service_account_email}")
+        
+    except Exception as e:
+        logger.error(f"Failed to grant secret access: {e}")
+        raise
+
+
+def enable_required_apis(project_id: str) -> None:
+    """Enable required Google Cloud APIs for the deployment."""
+    from google.cloud import serviceusage_v1
+    
+    logger.info("Enabling required Google Cloud APIs...")
+    
+    # List of required APIs
+    required_apis = [
+        "aiplatform.googleapis.com",
+        "secretmanager.googleapis.com",
+        "storage-api.googleapis.com",
+        "storage-component.googleapis.com",
+        "cloudresourcemanager.googleapis.com",
+    ]
+    
+    client = serviceusage_v1.ServiceUsageClient()
+    
+    for api in required_apis:
+        service_name = f"projects/{project_id}/services/{api}"
+        try:
+            # Check if the service is already enabled
+            service = client.get_service(name=service_name)
+            if service.state == serviceusage_v1.Service.State.ENABLED:
+                logger.info(f"✓ {api} is already enabled")
+            else:
+                logger.info(f"Enabling {api}...")
+                operation = client.enable_service(name=service_name)
+                logger.info(f"✓ {api} enabled successfully")
+        except Exception as e:
+            logger.warning(f"Could not check/enable {api}: {e}")
+            logger.info(f"Please ensure {api} is enabled in your project")
+
+
 def deploy_agent(
     project_id: str,
     location: str,
@@ -162,6 +256,13 @@ def deploy_agent(
     gcs_dir_name: Optional[str] = None
 ) -> Any:
     """Deploy the agent to Vertex AI Agent Engine"""
+    
+    # Enable required APIs
+    try:
+        enable_required_apis(project_id)
+    except Exception as e:
+        logger.warning(f"Could not automatically enable APIs: {e}")
+        logger.info("Please ensure all required APIs are enabled manually")
     
     # Create default staging bucket name if not provided
     if not staging_bucket:
@@ -177,6 +278,15 @@ def deploy_agent(
     if servicenow_password:
         logger.info("Creating/updating ServiceNow password secret...")
         create_secret_if_not_exists(project_id, "servicenow-password", servicenow_password)
+        
+        # Get the service account and grant access
+        try:
+            service_account_email = get_service_account_email(project_id, location)
+            logger.info(f"Granting secret access to service account: {service_account_email}")
+            grant_secret_access(project_id, service_account_email, "servicenow-password")
+        except Exception as e:
+            logger.warning(f"Could not automatically grant secret access: {e}")
+            logger.info("You may need to manually grant the service account access to the secret")
     
     # Get configurations
     requirements = get_package_requirements()
@@ -304,10 +414,13 @@ def main():
         print(f"Project: {args.project_id}")
         print(f"Location: {args.location}")
         print(f"Resource Name: {remote_agent.resource_name}")
+        print("\nSecret Manager Configuration:")
+        print("- ServiceNow password stored in Secret Manager: servicenow-password")
+        print("- IAM permissions automatically granted to the agent service account")
         print("\nNext steps:")
-        print("1. Grant the service agent necessary permissions if needed")
-        print("2. Test the agent using the Vertex AI console or API")
-        print("3. Monitor the agent's performance and logs")
+        print("1. Test the agent using the Vertex AI console or API")
+        print("2. Monitor the agent's performance and logs")
+        print("3. The agent will automatically fetch the password from Secret Manager")
         print("="*60)
         
     except Exception as e:

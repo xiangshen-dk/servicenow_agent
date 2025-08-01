@@ -24,15 +24,26 @@ The ServiceNow agent is an AI-powered tool that enables natural language interac
 
 ### Required Setup
 1. **Google Cloud Project** with billing enabled
-2. **APIs Enabled**:
-   - Vertex AI API
-   - Secret Manager API
-   - Cloud Storage API
-3. **ServiceNow Instance** with API access
-4. **Local Environment**:
+2. **ServiceNow Instance** with API access
+3. **Local Environment**:
    - Python 3.10+
    - Google Cloud SDK (`gcloud`)
    - ADK installed
+
+### Automatic API Enablement
+The deployment scripts automatically enable these required APIs:
+- Vertex AI API (`aiplatform.googleapis.com`)
+- Secret Manager API (`secretmanager.googleapis.com`)
+- Cloud Storage API (`storage-api.googleapis.com`)
+- Cloud Storage Component API (`storage-component.googleapis.com`)
+- Cloud Resource Manager API (`cloudresourcemanager.googleapis.com`)
+
+If automatic enablement fails, you can manually enable them:
+```bash
+gcloud services enable aiplatform.googleapis.com secretmanager.googleapis.com \
+  storage-api.googleapis.com storage-component.googleapis.com \
+  cloudresourcemanager.googleapis.com --project=YOUR_PROJECT_ID
+```
 
 ### Environment Configuration
 
@@ -134,20 +145,26 @@ google-cloud-secret-manager==2.24.0
 
 ## Post-Deployment
 
-### 1. Grant Permissions
-After deployment, grant necessary permissions to the service agent:
-```bash
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-  --member="serviceAccount:YOUR_SERVICE_ACCOUNT" \
-  --role="roles/secretmanager.secretAccessor"
-```
+### 1. Automatic Security Configuration
+The deployment process automatically:
+- Stores the ServiceNow password in Google Secret Manager
+- Grants the agent service account access to the secret
+- Configures the agent to fetch the password at runtime
+
+No manual IAM configuration is required for Secret Manager access.
 
 ### 2. Test the Agent
 - Access the agent through Vertex AI console
 - Test basic operations like "List all open incidents"
 - Monitor logs for any runtime issues
 
-### 3. Agent Capabilities
+### 3. Security Features
+- **Password Security**: ServiceNow password is never stored in plain text on the deployed agent
+- **Secret Manager Integration**: Password is securely stored in Google Secret Manager
+- **Automatic IAM**: Service account permissions are automatically configured during deployment
+- **Runtime Fetching**: Password is fetched from Secret Manager only when needed
+
+### 4. Agent Capabilities
 The deployed agent can:
 - **Create**: New ServiceNow records with specified fields
 - **Read**: Search and retrieve existing records
@@ -162,7 +179,10 @@ The deployed agent can:
 
 ## Important Notes
 
-1. **Security**: ServiceNow password is stored in Google Secret Manager
+1. **Security**: 
+   - ServiceNow password is automatically uploaded to Google Secret Manager during deployment
+   - The password in .env file is only used during deployment, not stored on the agent
+   - IAM permissions are automatically configured for the agent service account
 2. **File Structure**: Agent code must be in `snow_agent/` directory
 3. **Model Selection**: Use stable models for production deployments
 4. **Error Handling**: Check logs immediately after deployment for any issues

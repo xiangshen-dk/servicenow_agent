@@ -100,10 +100,11 @@ Built with:
 
 ## Security
 
-- Credentials stored in environment variables
-- Passwords managed via Google Secret Manager
-- HTTPS for all ServiceNow communications
-- Secure deployment to Google Cloud
+- **Secret Manager Integration**: ServiceNow password automatically stored in Google Secret Manager during deployment
+- **No Plain Text Passwords**: Password is never stored in plain text on the deployed agent
+- **Automatic IAM Configuration**: Service account permissions are automatically set up
+- **Runtime Secret Access**: Password is fetched from Secret Manager only when needed
+- **HTTPS Communications**: All ServiceNow API calls use secure HTTPS
 
 ## License
 
