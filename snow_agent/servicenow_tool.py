@@ -6,8 +6,8 @@ from typing import Dict, Any, Optional
 from google.adk.tools import FunctionTool
 
 from .servicenow_client import ServiceNowClient
-from ..config import ServiceNowSettings
-from ..models import CRUDRequest, CRUDResponse
+from .settings import ServiceNowSettings
+from .servicenow import CRUDRequest, CRUDResponse
 
 
 logger = logging.getLogger(__name__)

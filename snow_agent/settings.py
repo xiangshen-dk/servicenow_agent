@@ -51,7 +51,7 @@ class ServiceNowSettings(BaseSettings):
     
     class Config:
         env_prefix = "SERVICENOW_"
-        env_file = "../.env"
+        env_file = ".env"
         case_sensitive = False
         extra = "ignore"  # Ignore extra fields from .env
 
@@ -74,6 +74,6 @@ class AgentSettings(BaseSettings):
     
     class Config:
         env_prefix = "AGENT_"
-        env_file = "../.env"
+        env_file = ".env"
         case_sensitive = False
         extra = "ignore"  # Ignore extra fields from .env

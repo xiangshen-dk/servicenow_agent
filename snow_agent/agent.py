@@ -4,8 +4,8 @@ from typing import Optional
 
 from google.adk import Agent
 
-from .config import ServiceNowSettings, AgentSettings
-from .tools import create_servicenow_tool
+from .settings import ServiceNowSettings, AgentSettings
+from .servicenow_tool import create_servicenow_tool
 
 
 logger = logging.getLogger(__name__)

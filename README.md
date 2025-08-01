@@ -44,8 +44,17 @@ cp snow_agent/.env.example snow_agent/.env
 
 4. Run the agent:
 ```bash
-python main.py
+# Option 1: Run as a module (recommended)
+python -m main
+
+# Option 2: Use the run script
+python run.py
+
+# Option 3: For development with ADK web interface
+adk web
 ```
+
+**Note**: If you encounter "attempted relative import with no known parent package" error, see [FIX_RELATIVE_IMPORT_ERROR.md](FIX_RELATIVE_IMPORT_ERROR.md) for solutions.
 
 ## Usage Examples
 

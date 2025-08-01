@@ -199,16 +199,19 @@ def deploy_agent(
     logger.info(f"Extra packages: {extra_packages}")
     logger.info(f"Environment variables: {list(env_vars.keys())}")
     
+    from vertexai.preview import reasoning_engines
+
+    app = reasoning_engines.AdkApp(
+        agent=create_servicenow_agent(),
+        enable_tracing=True,
+    )
+
     try:
         # Deploy the agent
+        
         remote_agent = agent_engines.create(
-            create_servicenow_agent(),
+            agent_engine=app,
             requirements=requirements,
-            extra_packages=extra_packages,
-            env_vars=env_vars,
-            display_name=display_name,
-            description=description,
-            gcs_dir_name=gcs_dir_name,
         )
         
         logger.info("Agent deployed successfully!")

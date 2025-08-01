@@ -4,8 +4,8 @@ import logging
 from typing import Dict, Any, Optional, List
 from urllib.parse import urljoin
 
-from ..config import ServiceNowSettings
-from ..models import CRUDResponse
+from .settings import ServiceNowSettings
+from .servicenow import CRUDResponse
 
 
 logger = logging.getLogger(__name__)
