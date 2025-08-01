@@ -49,36 +49,40 @@ SERVICENOW_PASSWORD=your-password
 
 ## Deployment Methods
 
-### Method 1: Python Script (Recommended)
+### Method 1: ADK CLI (Recommended)
 
-Use the provided deployment script for automated deployment:
+The simplest and most reliable deployment method uses the ADK CLI directly:
+
+```bash
+# Step 1: Set up environment variables
+export PROJECT_ID=your-project-id
+export BUCKET_NAME=${PROJECT_ID}-agent-staging
+
+# Step 2: Create staging bucket (if it doesn't exist)
+gsutil mb -p ${PROJECT_ID} gs://${BUCKET_NAME}
+
+# Step 3: Deploy the agent
+adk deploy agent_engine --project=$PROJECT_ID \
+    --region=us-central1 \
+    --staging_bucket=gs://${BUCKET_NAME} \
+    --display_name="ServiceNow Agent" ./snow_agent
+```
+
+**Note**: ADK automatically reads the `.env` file from `snow_agent/.env` during deployment.
+
+### Method 2: Python Script (Alternative)
+
+For automated deployment with additional validation:
 
 ```bash
 python deploy_to_agent_engine.py
 ```
 
-The script handles:
+The script provides:
 - Environment variable validation
-- Secret Manager integration for passwords
-- Agent packaging and deployment
-- Error handling and logging
-
-### Method 2: ADK CLI
-
-For manual deployment using ADK CLI:
-
-```bash
-# First, ensure you're in the project directory
-cd /path/to/servicenow_agent
-
-# Deploy using ADK
-adk deploy agent_engine \
-  --project=YOUR_PROJECT_ID \
-  --region=us-central1 \
-  --staging_bucket=gs://YOUR_BUCKET \
-  --display_name="ServiceNow Agent" \
-  ./snow_agent
-```
+- Automatic Secret Manager integration
+- Detailed error handling and logging
+- Automated bucket creation
 
 ## Troubleshooting
 
@@ -171,6 +175,21 @@ For additional help:
 3. Verify ServiceNow credentials and API access
 4. Check that all required Google Cloud APIs are enabled
 
+## Quick Reference
+
+Based on successful deployment example:
+```bash
+# Complete deployment in 3 commands
+PROJECT_ID=your-project-id
+BUCKET_NAME=${PROJECT_ID}-agent-staging
+
+# Deploy (bucket will be created automatically if needed)
+adk deploy agent_engine --project=$PROJECT_ID \
+    --region=us-central1 \
+    --staging_bucket=gs://${BUCKET_NAME} \
+    --display_name="ServiceNow Agent" ./snow_agent
+```
+
 ---
 
-Last Updated: July 2025
+Last Updated: August 2025

@@ -1,4 +1,4 @@
-# ServiceNow Agent for Google AgentSpace
+# ServiceNow Agent
 
 An AI-powered agent that enables natural language interaction with ServiceNow instances for performing CRUD operations on records.
 
@@ -6,91 +6,83 @@ An AI-powered agent that enables natural language interaction with ServiceNow in
 
 - 🤖 Natural language processing for ServiceNow operations
 - 📝 Full CRUD support (Create, Read, Update, Delete)
-- 🔒 Secure credential management
+- 🔒 Secure credential management via Google Secret Manager
 - 📊 Support for multiple ServiceNow tables
-- ☁️ Deployable to Google AgentSpace
-- 🛡️ Comprehensive error handling and logging
-- 📅 Advanced query support with date ranges and operators
-- 🔄 Automatic JSON string parsing for web interface compatibility
+- ☁️ Deployable to Google Cloud Agent Engine
 
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.13+
-- Google ADK access
+- Python 3.10+
+- Google Cloud SDK with ADK
 - ServiceNow instance with API access
-- Google Cloud account (for AgentSpace deployment)
+- Google Cloud project with billing enabled
 
-### Local Development
+### Setup
 
-1. Clone the repository:
+1. **Clone and install**:
 ```bash
 git clone <repository-url>
 cd servicenow-agent
-```
-
-2. Install dependencies:
-```bash
 pip install uv
-uv pip install -e .
+uv sync
 ```
 
-3. Configure environment:
+2. **Configure credentials**:
 ```bash
 cp snow_agent/.env.example snow_agent/.env
 # Edit snow_agent/.env with your ServiceNow credentials
 ```
 
-4. Run the agent:
+3. **Run locally**:
 ```bash
-# Option 1: Run as a module (recommended)
-python -m main
-
-# Option 2: Use the run script
-python run.py
-
-# Option 3: For development with ADK web interface
 adk web
 ```
 
-**Note**: If you encounter "attempted relative import with no known parent package" error, see [FIX_RELATIVE_IMPORT_ERROR.md](FIX_RELATIVE_IMPORT_ERROR.md) for solutions.
+## Deployment
+
+### Quick Deploy
+
+```bash
+export PROJECT_ID=your-gcp-project
+./deploy.sh
+```
+
+### Manual Deploy
+
+```bash
+export PROJECT_ID=your-gcp-project
+export BUCKET_NAME=${PROJECT_ID}-agent-staging
+
+adk deploy agent_engine --project=$PROJECT_ID \
+    --region=us-central1 \
+    --staging_bucket=gs://${BUCKET_NAME} \
+    --display_name="ServiceNow Agent" ./snow_agent
+```
+
+For detailed instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
 ## Usage Examples
 
-The agent understands natural language commands for ServiceNow operations:
-
-### Basic Operations
-- **Create**: "Create a new incident with short description 'Printer not working' and urgency high"
-- **Read**: "Show me all incidents assigned to john.doe"
+### Basic Commands
+- **Create**: "Create a new incident with short description 'Printer not working'"
+- **Read**: "List all open incidents"
 - **Update**: "Update incident INC0010001 priority to high"
-- **Delete**: "Delete problem PRB0010001"
-
-### Advanced Queries
-- **Date-based**: "List open incidents since June 2025"
-- **Date ranges**: "Show incidents created between January and March 2025"
-- **State filtering**: "List all non-resolved incidents"
-- **Complex updates**: "Resolve INC0010001 with resolution code 'Solved (Permanently)' and close notes 'Fixed the configuration'"
-
-### Important Notes
-- When resolving or closing incidents, you must provide:
-  - Resolution code (for state=Resolved)
-  - Close code (for state=Closed)
-  - Close notes describing the resolution
+- **Delete**: "Delete problem INC0010001"
 
 ## Configuration
 
-### Environment Variables
+Create `snow_agent/.env` with:
+```
+SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
+SERVICENOW_USERNAME=your-username
+SERVICENOW_PASSWORD=your-password
+GOOGLE_CLOUD_PROJECT=your-project-id
+```
 
-- `SERVICENOW_INSTANCE_URL`: Your ServiceNow instance URL
-- `SERVICENOW_USERNAME`: ServiceNow API username
-- `SERVICENOW_PASSWORD`: ServiceNow API password
-- `AGENT_MODEL`: Google AI model (default: google/gemini-2.5-flash-lite)
-- `SERVICENOW_ALLOWED_TABLES`: Comma-separated list of allowed tables
+## Supported Tables
 
-### Supported Tables
-
-By default, the agent supports:
 - incident
 - change_request
 - problem
@@ -98,39 +90,21 @@ By default, the agent supports:
 - sc_req_item
 - cmdb_ci
 
-## Deployment to AgentSpace
-
-1. Set up Google Cloud credentials:
-```bash
-gcloud auth login
-gcloud config set project YOUR_PROJECT_ID
-```
-
-2. Deploy the agent:
-```bash
-export PROJECT_ID=your-gcp-project
-python deploy_to_agent_engine.py
-```
-
 ## Architecture
 
-The agent is built using:
-- **Google ADK**: Agent Development Kit for AI capabilities
-- **Gemini Models**: For natural language understanding
-- **ServiceNow REST API**: For CRUD operations
-- **Async Python**: For efficient API calls
-
-## Development
-
-See [CLAUDE.md](CLAUDE.md) for detailed development guidance.
+Built with:
+- **Google ADK**: Agent Development Kit
+- **Gemini Models**: Natural language understanding
+- **ServiceNow REST API**: CRUD operations
+- **Python 3.10+**: Async support
 
 ## Security
 
-- Credentials are stored securely using environment variables
-- API passwords are handled as secrets
-- All communications with ServiceNow use HTTPS
-- Deployment uses Google Cloud Secret Manager
+- Credentials stored in environment variables
+- Passwords managed via Google Secret Manager
+- HTTPS for all ServiceNow communications
+- Secure deployment to Google Cloud
 
 ## License
 
-[Your License Here]
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.

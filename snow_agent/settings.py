@@ -68,7 +68,7 @@ class AgentSettings(BaseSettings):
         description="Agent description"
     )
     model: str = Field(
-        default="gemini-2.5-flash-lite",
+        default="gemini-2.5-flash",
         description="Google AI model to use"
     )
     
