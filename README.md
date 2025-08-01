@@ -38,8 +38,8 @@ uv pip install -e .
 
 3. Configure environment:
 ```bash
-cp .env.example .env
-# Edit .env with your ServiceNow credentials
+cp snow_agent/.env.example snow_agent/.env
+# Edit snow_agent/.env with your ServiceNow credentials
 ```
 
 4. Run the agent:
@@ -100,7 +100,7 @@ gcloud config set project YOUR_PROJECT_ID
 2. Deploy the agent:
 ```bash
 export PROJECT_ID=your-gcp-project
-./scripts/deploy.sh
+python deploy_to_agent_engine.py
 ```
 
 ## Architecture

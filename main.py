@@ -9,14 +9,14 @@ from google.adk import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from src.snow_agent.agent import root_agent
-from src.snow_agent.utils import setup_logging
+from snow_agent.agent import root_agent
+from snow_agent.utils.logging import setup_logging
 
 
 async def main():
     """Main entry point for the ServiceNow agent."""
     # Load environment variables
-    env_file = Path(".env")
+    env_file = Path("snow_agent/.env")
     if env_file.exists():
         load_dotenv(env_file)
         print(f"Loaded environment from {env_file}")
