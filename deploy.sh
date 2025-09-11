@@ -68,12 +68,12 @@ echo "🔐 Setting up Secret Manager..."
 echo "Creating/updating ServiceNow password secret..."
 
 # Check if secret exists
-if gcloud secrets describe servicenow-password --project=$PROJECT_ID &> /dev/null; then
+if gcloud secrets describe servicenow-password-prod --project=$PROJECT_ID &> /dev/null; then
     echo "Secret already exists, adding new version..."
-    echo -n "$SERVICENOW_PASSWORD" | gcloud secrets versions add servicenow-password --data-file=- --project=$PROJECT_ID
+    echo -n "$SERVICENOW_PASSWORD" | gcloud secrets versions add servicenow-password-prod --data-file=- --project=$PROJECT_ID
 else
     echo "Creating new secret..."
-    echo -n "$SERVICENOW_PASSWORD" | gcloud secrets create servicenow-password --data-file=- --project=$PROJECT_ID
+    echo -n "$SERVICENOW_PASSWORD" | gcloud secrets create servicenow-password-prod --data-file=- --project=$PROJECT_ID
 fi
 
 echo "✅ Secret Manager configured"

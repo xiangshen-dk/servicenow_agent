@@ -11,7 +11,7 @@ class ServiceNowSettings(BaseSettings):
     """ServiceNow configuration settings."""
     
     instance_url: str = Field(
-        ...,
+        default="https://ven04789.service-now.com",
         description="ServiceNow instance URL (e.g., https://dev123456.service-now.com)"
     )
     username: str = Field(
@@ -55,7 +55,7 @@ class ServiceNowSettings(BaseSettings):
             client = secretmanager.SecretManagerServiceClient()
             
             # Build the resource name of the secret
-            secret_name = f"projects/{project_id}/secrets/servicenow-password/versions/latest"
+            secret_name = f"projects/{project_id}/secrets/servicenow-password-prod/versions/latest"
             
             # Access the secret version
             response = client.access_secret_version(request={"name": secret_name})
