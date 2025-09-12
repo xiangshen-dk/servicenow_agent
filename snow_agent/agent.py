@@ -24,8 +24,11 @@ from .prompts import GLOBAL_INSTRUCTION, INSTRUCTION
 
 # Configure logging to output to stdout with "ServiceNow Agent: " prefix
 # This ensures logs appear in Cloud Logging when deployed to Agent Engine
+# Set to DEBUG for detailed logging, or INFO for production
+import os
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format='ServiceNow Agent: %(levelname)s - %(name)s - %(message)s',
     stream=sys.stdout,
     force=True  # Force reconfiguration even if logging was already configured
