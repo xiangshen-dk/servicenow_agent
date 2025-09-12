@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import sys
 from typing import Optional
 
 from google.adk import Agent
@@ -21,6 +22,19 @@ from .settings import ServiceNowSettings, AgentSettings
 from .servicenow_tool import create_servicenow_tool
 from .prompts import GLOBAL_INSTRUCTION, INSTRUCTION
 
+# Configure logging to output to stdout with "ServiceNow Agent: " prefix
+# This ensures logs appear in Cloud Logging when deployed to Agent Engine
+logging.basicConfig(
+    level=logging.INFO,
+    format='ServiceNow Agent: %(levelname)s - %(name)s - %(message)s',
+    stream=sys.stdout,
+    force=True  # Force reconfiguration even if logging was already configured
+)
+
+# Reduce noise from HTTP libraries
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
