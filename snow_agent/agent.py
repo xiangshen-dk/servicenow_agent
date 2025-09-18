@@ -1,4 +1,4 @@
-# Copyright 2022 Google LLC
+# Copyright 2025 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -76,27 +76,78 @@ def create_servicenow_agent(
         raise RuntimeError(f"Failed to create agent: {str(e)}")
 
 
-# Create a default agent instance
+# Lazy initialization pattern for the root agent
+_root_agent = None
+_root_agent_error = None
+
+def get_root_agent() -> Agent:
+    """
+    Get or create the singleton root agent instance.
+    Uses lazy initialization to avoid import-time side effects.
+    
+    Returns:
+        Agent: The configured ServiceNow agent
+        
+    Raises:
+        RuntimeError: If agent creation fails
+    """
+    global _root_agent, _root_agent_error
+    
+    if _root_agent is not None:
+        return _root_agent
+    
+    if _root_agent_error is not None:
+        # Re-raise the cached error to avoid repeated initialization attempts
+        raise _root_agent_error
+    
+    try:
+        # Try to load settings from environment
+        servicenow_settings = ServiceNowSettings()
+        agent_settings = AgentSettings()
+        _root_agent = create_servicenow_agent(servicenow_settings, agent_settings)
+        logger.info("Root agent initialized successfully")
+        return _root_agent
+    except Exception as e:
+        # Cache the error to avoid repeated failed attempts
+        _root_agent_error = RuntimeError(f"Failed to initialize root agent: {str(e)}")
+        logger.error(f"Could not create ServiceNow agent: {e}")
+        
+        # Create a basic fallback agent if needed
+        try:
+            agent_settings = AgentSettings()
+            model = agent_settings.model
+        except:
+            model = "gemini-2.5-flash"
+        
+        _root_agent = Agent(
+            name="ServiceNow_Agent_Unconfigured",
+            model=model,
+            description="ServiceNow agent awaiting configuration",
+            instruction="I am a ServiceNow agent but I'm not yet configured. Please provide ServiceNow credentials and instance URL."
+        )
+        return _root_agent
+
+# Create root_agent for Google ADK framework compatibility
+# The framework requires a module-level 'root_agent' variable that is an Agent instance
+# We need to create it at module level for the framework to find it
 try:
     # Try to load settings from environment
-    servicenow_settings = ServiceNowSettings()
-    agent_settings = AgentSettings()
-    root_agent = create_servicenow_agent(servicenow_settings, agent_settings)
+    _servicenow_settings = ServiceNowSettings()
+    _agent_settings = AgentSettings()
+    root_agent = create_servicenow_agent(_servicenow_settings, _agent_settings)
+    logger.info("Root agent created for Google ADK framework")
 except Exception as e:
-    # Create a basic agent without ServiceNow integration if settings are missing
-    import traceback
-    logger.warning(f"Could not create ServiceNow agent with full configuration: {e}")
-    logger.debug(f"Full traceback: {traceback.format_exc()}")
-    # Still try to load agent settings for the model configuration
+    # If configuration is missing, create a minimal agent
+    # This allows the module to be imported and the framework to load
+    logger.warning(f"Creating minimal agent due to missing configuration: {e}")
     try:
-        agent_settings = AgentSettings()
-        model = agent_settings.model
+        _agent_settings = AgentSettings()
+        model = _agent_settings.model
     except:
-        # If even agent settings fail, use the default
         model = "gemini-2.5-flash"
     
     root_agent = Agent(
-        name="ServiceNow_Agent_Unconfigured",
+        name="ServiceNow_Agent",
         model=model,
         description="ServiceNow agent awaiting configuration",
         instruction="I am a ServiceNow agent but I'm not yet configured. Please provide ServiceNow credentials and instance URL."

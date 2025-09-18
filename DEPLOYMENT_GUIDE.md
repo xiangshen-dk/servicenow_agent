@@ -133,14 +133,14 @@ resource.labels.reasoning_engine_id="YOUR_RESOURCE_ID"
 
 The `deploy_requirements.txt` must be clean without comments:
 ```
-google-cloud-aiplatform[agent_engines,adk]==1.106.0
-google-adk==1.8.0
-httpx==0.28.1
-pydantic==2.11.7
-pydantic-settings==2.10.1
-python-dotenv==1.1.1
-cloudpickle==3.1.1
-google-cloud-secret-manager==2.24.0
+google-cloud-aiplatform[adk,agent-engines]>=1.114.0
+google-adk>=1.14.1
+httpx>=0.27.0
+pydantic>=2.11.9
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+cloudpickle>=3.1.1
+google-cloud-secret-manager>=2.24.0
 ```
 
 ## Post-Deployment

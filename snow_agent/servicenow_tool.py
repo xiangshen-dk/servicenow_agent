@@ -8,9 +8,10 @@ from google.adk.tools import FunctionTool
 from .servicenow_client import ServiceNowClient
 from .settings import ServiceNowSettings
 from .servicenow import CRUDRequest, CRUDResponse
+from .logging_config import LogContext, get_logger
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def create_servicenow_tool(settings: ServiceNowSettings) -> FunctionTool:
@@ -46,117 +47,124 @@ def create_servicenow_tool(settings: ServiceNowSettings) -> FunctionTool:
         Returns:
             Dict containing the operation result
         """
-        logger.info(f"Starting ServiceNow {operation.upper()} operation on table '{table}'")
-        if sys_id:
-            logger.info(f"Target record sys_id: {sys_id}")
-        
-        try:
-            # Handle JSON strings that might be passed instead of dictionaries
-            if isinstance(query, str):
-                logger.debug(f"Converting query string to dictionary: {query}")
-                try:
-                    query = json.loads(query)
-                    logger.debug("Query string successfully parsed")
-                except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse query as JSON: {query}")
-                    
-            if isinstance(data, str):
-                logger.debug(f"Converting data string to dictionary")
-                try:
-                    data = json.loads(data)
-                    logger.debug("Data string successfully parsed")
-                except json.JSONDecodeError:
-                    logger.warning(f"Failed to parse data as JSON: {data}")
+        # Add contextual information to all logs within this operation
+        with LogContext(logger,
+                       operation=operation.upper(),
+                       table=table,
+                       sys_id=sys_id if sys_id else None,
+                       instance=settings.instance_url):
             
-            # Log the request details
-            if query:
-                logger.info(f"Query parameters: {query}")
-            if data:
-                logger.info(f"Data payload: {json.dumps(data, indent=2)}")
-            if fields:
-                logger.info(f"Requested fields: {fields}")
-            if limit:
-                logger.info(f"Record limit: {limit}")
+            logger.info(f"Starting ServiceNow {operation.upper()} operation")
+            if sys_id:
+                logger.info(f"Target record sys_id: {sys_id}")
             
-            # Validate and parse the request
-            logger.debug("Validating request parameters")
-            request = CRUDRequest(
-                operation=operation,
-                table=table,
-                sys_id=sys_id,
-                data=data,
-                query=query,
-                fields=fields,
-                limit=limit
-            )
-            logger.debug("Request validation successful")
-            
-            # Perform the operation
-            if request.operation == "create":
-                if not request.data:
-                    logger.error("CREATE operation failed: missing required 'data' parameter")
-                    raise ValueError("'data' is required for create operations")
-                logger.info(f"Executing CREATE operation on {request.table}")
-                response = await client.create_record(
-                    table=request.table,
-                    data=request.data,
-                    fields=request.fields
+            try:
+                # Handle JSON strings that might be passed instead of dictionaries
+                if isinstance(query, str):
+                    logger.debug(f"Converting query string to dictionary: {query}")
+                    try:
+                        query = json.loads(query)
+                        logger.debug("Query string successfully parsed")
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse query as JSON: {query}")
+                        
+                if isinstance(data, str):
+                    logger.debug(f"Converting data string to dictionary")
+                    try:
+                        data = json.loads(data)
+                        logger.debug("Data string successfully parsed")
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse data as JSON: {data}")
+                
+                # Log the request details
+                if query:
+                    logger.info(f"Query parameters: {query}")
+                if data:
+                    logger.info(f"Data payload: {json.dumps(data, indent=2)}")
+                if fields:
+                    logger.info(f"Requested fields: {fields}")
+                if limit:
+                    logger.info(f"Record limit: {limit}")
+                
+                # Validate and parse the request
+                logger.debug("Validating request parameters")
+                request = CRUDRequest(
+                    operation=operation,
+                    table=table,
+                    sys_id=sys_id,
+                    data=data,
+                    query=query,
+                    fields=fields,
+                    limit=limit
                 )
+                logger.debug("Request validation successful")
+                
+                # Perform the operation
+                if request.operation == "create":
+                    if not request.data:
+                        logger.error("CREATE operation failed: missing required 'data' parameter")
+                        raise ValueError("'data' is required for create operations")
+                    logger.info(f"Executing CREATE operation on {request.table}")
+                    response = await client.create_record(
+                        table=request.table,
+                        data=request.data,
+                        fields=request.fields
+                    )
+                
+                elif request.operation == "read":
+                    logger.info(f"Executing READ operation on {request.table}")
+                    response = await client.read_records(
+                        table=request.table,
+                        query=request.query,
+                        fields=request.fields,
+                        limit=request.limit
+                    )
+                
+                elif request.operation == "update":
+                    if not request.sys_id:
+                        logger.error("UPDATE operation failed: missing required 'sys_id' parameter")
+                        raise ValueError("'sys_id' is required for update operations")
+                    if not request.data:
+                        logger.error("UPDATE operation failed: missing required 'data' parameter")
+                        raise ValueError("'data' is required for update operations")
+                    logger.info(f"Executing UPDATE operation on {request.table} for sys_id: {request.sys_id}")
+                    response = await client.update_record(
+                        table=request.table,
+                        sys_id=request.sys_id,
+                        data=request.data,
+                        fields=request.fields
+                    )
+                
+                elif request.operation == "delete":
+                    if not request.sys_id:
+                        logger.error("DELETE operation failed: missing required 'sys_id' parameter")
+                        raise ValueError("'sys_id' is required for delete operations")
+                    logger.info(f"Executing DELETE operation on {request.table} for sys_id: {request.sys_id}")
+                    response = await client.delete_record(
+                        table=request.table,
+                        sys_id=request.sys_id
+                    )
+                
+                else:
+                    logger.error(f"Invalid operation requested: {request.operation}")
+                    raise ValueError(f"Invalid operation: {request.operation}")
+                
+                # Return the result
+                if response.success:
+                    logger.info(f"Operation {request.operation.upper()} completed successfully")
+                    if hasattr(response, 'count'):
+                        logger.info(f"Records affected: {response.count}")
+                    result = response.dict()
+                    logger.debug(f"Response data: {json.dumps(result, indent=2)}")
+                    return result
+                else:
+                    logger.error(f"Operation {request.operation.upper()} failed: {response.error}")
+                    raise RuntimeError(response.error or "Operation failed")
             
-            elif request.operation == "read":
-                logger.info(f"Executing READ operation on {request.table}")
-                response = await client.read_records(
-                    table=request.table,
-                    query=request.query,
-                    fields=request.fields,
-                    limit=request.limit
-                )
-            
-            elif request.operation == "update":
-                if not request.sys_id:
-                    logger.error("UPDATE operation failed: missing required 'sys_id' parameter")
-                    raise ValueError("'sys_id' is required for update operations")
-                if not request.data:
-                    logger.error("UPDATE operation failed: missing required 'data' parameter")
-                    raise ValueError("'data' is required for update operations")
-                logger.info(f"Executing UPDATE operation on {request.table} for sys_id: {request.sys_id}")
-                response = await client.update_record(
-                    table=request.table,
-                    sys_id=request.sys_id,
-                    data=request.data,
-                    fields=request.fields
-                )
-            
-            elif request.operation == "delete":
-                if not request.sys_id:
-                    logger.error("DELETE operation failed: missing required 'sys_id' parameter")
-                    raise ValueError("'sys_id' is required for delete operations")
-                logger.info(f"Executing DELETE operation on {request.table} for sys_id: {request.sys_id}")
-                response = await client.delete_record(
-                    table=request.table,
-                    sys_id=request.sys_id
-                )
-            
-            else:
-                logger.error(f"Invalid operation requested: {request.operation}")
-                raise ValueError(f"Invalid operation: {request.operation}")
-            
-            # Return the result
-            if response.success:
-                logger.info(f"Operation {request.operation.upper()} completed successfully")
-                if hasattr(response, 'count'):
-                    logger.info(f"Records affected: {response.count}")
-                result = response.dict()
-                logger.debug(f"Response data: {json.dumps(result, indent=2)}")
-                return result
-            else:
-                logger.error(f"Operation {request.operation.upper()} failed: {response.error}")
-                raise RuntimeError(response.error or "Operation failed")
-        
-        except Exception as e:
-            logger.error(f"Error in ServiceNow tool during {operation.upper()} operation: {e}")
-            logger.error(f"Full error details: {type(e).__name__}: {str(e)}")
-            raise RuntimeError(f"ServiceNow operation failed: {str(e)}")
+            except Exception as e:
+                logger.error(f"Error in ServiceNow tool: {e}")
+                logger.error(f"Full error details: {type(e).__name__}: {str(e)}")
+                raise RuntimeError(f"ServiceNow operation failed: {str(e)}")
     
     # Create and return the FunctionTool
     logger.info("ServiceNow tool created successfully")

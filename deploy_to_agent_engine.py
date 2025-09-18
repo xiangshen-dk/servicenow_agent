@@ -90,6 +90,10 @@ def get_environment_variables() -> Dict[str, Any]:
         "SERVICENOW_API_TIMEOUT": os.getenv("SERVICENOW_API_TIMEOUT", "30"),
         "SERVICENOW_MAX_RECORDS": os.getenv("SERVICENOW_MAX_RECORDS", "100"),
         
+        # Logging configuration for production (structured JSON logs, no colors)
+        "ENVIRONMENT": "production",
+        "LOG_LEVEL": os.getenv("LOG_LEVEL", "INFO"),
+        
         # Vertex AI configuration
         "GOOGLE_GENAI_USE_VERTEXAI": "1",
     }

@@ -92,6 +92,15 @@ echo ""
 echo "🚀 Deploying ServiceNow Agent to Google Cloud Agent Engine..."
 echo ""
 
+# Set environment to production for proper logging in Cloud Logging
+export ENVIRONMENT=production
+export LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+echo "📝 Logging Configuration:"
+echo "  ENVIRONMENT: production (structured JSON logs)"
+echo "  LOG_LEVEL: $LOG_LEVEL"
+echo ""
+
 adk deploy agent_engine --project=$PROJECT_ID \
     --region=us-central1 \
     --staging_bucket=gs://${BUCKET_NAME} \

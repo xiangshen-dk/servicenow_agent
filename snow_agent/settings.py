@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, List, Union
 from pydantic_settings import BaseSettings
 from pydantic import Field, SecretStr, field_validator
 import os
@@ -70,7 +70,7 @@ class ServiceNowSettings(BaseSettings):
             return None
     
     # Tables configuration
-    allowed_tables: list[str] | str = Field(
+    allowed_tables: Union[List[str], str] = Field(
         default=[
             "incident",
             "change_request",

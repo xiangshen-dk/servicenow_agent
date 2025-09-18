@@ -14,7 +14,7 @@ An AI-powered agent that enables natural language interaction with ServiceNow in
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.13+
 - Google Cloud SDK with ADK
 - ServiceNow instance with API access
 - Google Cloud project with billing enabled
@@ -96,7 +96,7 @@ Built with:
 - **Google ADK**: Agent Development Kit
 - **Gemini Models**: Natural language understanding
 - **ServiceNow REST API**: CRUD operations
-- **Python 3.10+**: Async support
+- **Python 3.13+**: Async support
 
 ## Security
 
