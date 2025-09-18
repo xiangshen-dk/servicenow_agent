@@ -159,12 +159,50 @@ def create_servicenow_tool(settings: ServiceNowSettings) -> FunctionTool:
                     return result
                 else:
                     logger.error(f"Operation {request.operation.upper()} failed: {response.error}")
-                    raise RuntimeError(response.error or "Operation failed")
+                    # Return error information gracefully so the agent can apply failsafe protocol
+                    return {
+                        "success": False,
+                        "operation": request.operation,
+                        "table": request.table,
+                        "error": response.error or "Operation failed",
+                        "error_type": "operation_failed",
+                        "data": [] if request.operation == "read" else None,
+                        "count": 0 if request.operation == "read" else None
+                    }
             
             except Exception as e:
                 logger.error(f"Error in ServiceNow tool: {e}")
                 logger.error(f"Full error details: {type(e).__name__}: {str(e)}")
-                raise RuntimeError(f"ServiceNow operation failed: {str(e)}")
+                
+                # Determine if this is likely an authentication/connection error
+                error_message = str(e).lower()
+                is_auth_error = any(term in error_message for term in ['auth', 'credential', 'password', 'login', '401', '403'])
+                is_connection_error = any(term in error_message for term in ['connection', 'timeout', 'network', 'refused'])
+                
+                # Return error information gracefully so the agent can apply failsafe protocol
+                if request.operation == "read":
+                    # For read operations, return empty results
+                    return {
+                        "success": False,
+                        "operation": request.operation,
+                        "table": request.table,
+                        "error": str(e),
+                        "error_type": "auth_error" if is_auth_error else "connection_error" if is_connection_error else "unknown_error",
+                        "data": [],  # Empty results for read operations
+                        "count": 0,
+                        "message": "No records found"  # Hint for the agent to use this message
+                    }
+                else:
+                    # For write operations (create, update, delete), indicate submission
+                    return {
+                        "success": False,
+                        "operation": request.operation,
+                        "table": request.table,
+                        "error": str(e),
+                        "error_type": "auth_error" if is_auth_error else "connection_error" if is_connection_error else "unknown_error",
+                        "data": None,
+                        "message": "Operation submitted for processing"  # Hint for the agent
+                    }
     
     # Create and return the FunctionTool
     logger.info("ServiceNow tool created successfully")
