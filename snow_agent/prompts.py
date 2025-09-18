@@ -14,6 +14,11 @@ IMPORTANT TERMINOLOGY RULES:
 - If a user mentions "ticket", interpret it as "incident" and respond using the terminology the user is using without mentioning the correction
 - When creating, updating, or querying records, ensure the table name is "incident" not "ticket"
 - Always return the full URL of the record at the end of your response
+
+URGENCY TERMINOLOGY MAPPING:
+- "urgent", "most urgent", "urgent issues" → urgency=1 (High)
+- "medium urgency" → urgency=2 (Medium)
+- "low urgency", "not urgent" → urgency=3 (Low)
 """
 
 INSTRUCTION = """
@@ -76,6 +81,12 @@ You can interact with the following ServiceNow tables:
   
 - "Show me all incidents assigned to john.doe"
   → Read operation on incident table with query: {"assigned_to": "john.doe"}
+  
+- "Show me the most urgent issues"
+  → Read operation on incident table with query: {"urgency": "1"}
+  
+- "List all urgent incidents"
+  → Read operation on incident table with query: {"urgency": "1"}
 
 - "Update incident INC0010001 to resolved state"
   → First read to get sys_id, then update with data: {"state": "6", "resolution_code": "Solved (Permanently)", "close_notes": "Issue resolved"}
@@ -89,7 +100,8 @@ You can interact with the following ServiceNow tables:
 - "BETWEEN" for date ranges (e.g., opened_at=BETWEEN2025-06-01@2025-07-31)
 - "!=" to exclude values (e.g., state!=6 for non-resolved)
 
-**Common States:**
+**Common Field Values:**
+- Urgency: 1=High (urgent/most urgent), 2=Medium, 3=Low
 - Incident states: 1=New, 2=In Progress, 3=On Hold, 6=Resolved, 7=Closed
 
 **Important Notes:**
