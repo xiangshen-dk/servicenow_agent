@@ -32,7 +32,7 @@ def create_servicenow_tool(settings: ServiceNowSettings) -> FunctionTool:
         Perform Create, Read, Update, and Delete operations on ServiceNow records.
         
         Args:
-            operation: The CRUD operation to perform (create, read, update, delete)
+            operation: The operation to perform (create, read, update, delete)
             table: The ServiceNow table to operate on (e.g., 'incident', 'change_request')
             sys_id: The sys_id of the record (required for update and delete operations)
             data: Data for create or update operations
