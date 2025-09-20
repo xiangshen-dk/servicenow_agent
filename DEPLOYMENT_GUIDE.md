@@ -1,22 +1,23 @@
 # ServiceNow Agent Deployment Guide
 
-This guide consolidates all deployment information for the ServiceNow agent to Google Cloud's Vertex AI Agent Engine.
+This guide provides comprehensive instructions for deploying the ServiceNow agent to Google Cloud's Vertex AI Agent Engine with OAuth authentication.
 
 ## Table of Contents
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
-3. [Deployment Methods](#deployment-methods)
-4. [Troubleshooting](#troubleshooting)
-5. [Post-Deployment](#post-deployment)
+3. [Environment Configuration](#environment-configuration)
+4. [Deployment Process](#deployment-process)
+5. [Troubleshooting](#troubleshooting)
+6. [Post-Deployment](#post-deployment)
 
 ## Overview
 
-The ServiceNow agent is an AI-powered tool that enables natural language interaction with ServiceNow instances for performing CRUD operations on records. It has been prepared for deployment to Google Cloud's Vertex AI Agent Engine.
+The ServiceNow agent is an AI-powered tool that enables natural language interaction with ServiceNow instances for performing CRUD operations on records. It uses OAuth 2.0 authentication via GCP Authorization for secure access.
 
 ### Key Features
 - Natural language processing for ServiceNow operations
 - Full CRUD support (Create, Read, Update, Delete)
-- Secure credential management via Google Secret Manager
+- OAuth 2.0 authentication via GCP Authorization
 - Support for multiple ServiceNow tables
 - Comprehensive error handling and logging
 
@@ -24,99 +25,129 @@ The ServiceNow agent is an AI-powered tool that enables natural language interac
 
 ### Required Setup
 1. **Google Cloud Project** with billing enabled
-2. **ServiceNow Instance** with API access
+2. **ServiceNow Instance** with OAuth 2.0 client configured
 3. **Local Environment**:
-   - Python 3.10+
+   - Python 3.13+
    - Google Cloud SDK (`gcloud`)
-   - ADK installed
+   - UV package manager
 
-### Automatic API Enablement
-The deployment scripts automatically enable these required APIs:
+### ServiceNow OAuth Setup
+1. In ServiceNow, create an OAuth 2.0 client application
+2. Note the Client ID and Client Secret
+3. Configure the OAuth endpoint for client credentials flow
+
+### Required Google Cloud APIs
+The deployment script automatically enables these APIs:
 - Vertex AI API (`aiplatform.googleapis.com`)
+- Discovery Engine API (`discoveryengine.googleapis.com`)
 - Secret Manager API (`secretmanager.googleapis.com`)
-- Cloud Storage API (`storage-api.googleapis.com`)
-- Cloud Storage Component API (`storage-component.googleapis.com`)
+- Cloud Storage APIs (`storage-api.googleapis.com`, `storage-component.googleapis.com`)
 - Cloud Resource Manager API (`cloudresourcemanager.googleapis.com`)
 
-If automatic enablement fails, you can manually enable them:
-```bash
-gcloud services enable aiplatform.googleapis.com secretmanager.googleapis.com \
-  storage-api.googleapis.com storage-component.googleapis.com \
-  cloudresourcemanager.googleapis.com --project=YOUR_PROJECT_ID
-```
+## Environment Configuration
 
-### Environment Configuration
-
-Create a `snow_agent/.env` file with your credentials:
+### 1. Create Configuration File
 ```bash
 cp snow_agent/.env.example snow_agent/.env
-# Then edit snow_agent/.env with your values:
-GOOGLE_CLOUD_PROJECT=your-project-id
+```
+
+### 2. Edit snow_agent/.env with your values:
+```bash
+# Google Cloud / Vertex AI Configuration
+GOOGLE_GENAI_USE_VERTEXAI=1
+GOOGLE_CLOUD_PROJECT=your-gcp-project
+GOOGLE_CLOUD_PROJECT_NUMBER=your-gcp-project-number
 GOOGLE_CLOUD_LOCATION=us-central1
-SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
-SERVICENOW_USERNAME=your-username
-SERVICENOW_PASSWORD=your-password
+
+# AgentSpace Configuration (if using AgentSpace)
+AS_APP=your-agent-space-app-id
+ASSISTANT_ID=your-assistant-id
+
+# ServiceNow OAuth Configuration
+SERVICENOW_INSTANCE_URL=https://dev123456.service-now.com
+SERVICENOW_CLIENT_ID=your-servicenow-client-id
+SERVICENOW_CLIENT_SECRET=your-servicenow-client-secret
+
+# Agent Configuration
+AGENT_NAME=servicenow_agent
+AGENT_DISPLAY_NAME=ServiceNow Agent
+AGENT_DESCRIPTION=An AI agent for managing ServiceNow records through natural language
+TOOL_DESCRIPTION=A tool to perform Create, Read, Update, and Delete operations on ServiceNow records.
+AGENT_MODEL=gemini-2.5-flash
+AGENT_VERSION=1.0.0
+
+# GCP Authorization Configuration
+AUTH_ID=servicenow-oauth-auth
 ```
 
-## Deployment Methods
+## Deployment Process
 
-### Method 1: ADK CLI (Recommended)
+The deployment is a three-step process orchestrated by the `deploy.sh` script:
 
-The simplest and most reliable deployment method uses the ADK CLI directly:
+### Quick Deploy
+```bash
+# Set your project ID
+export PROJECT_ID=your-gcp-project
+
+# Run the deployment script
+./deploy.sh
+```
+
+### What the Script Does
+
+#### Step 1: Deploy Agent to Agent Engine
+- Deploys the agent code to Vertex AI Agent Engine
+- Creates a reasoning engine resource
+- Returns a reasoning engine URI
+
+#### Step 2: Create GCP Authorization
+- Creates an OAuth 2.0 authorization resource in GCP
+- Stores ServiceNow client credentials securely
+- Links to the ServiceNow OAuth endpoints
+
+#### Step 3: Patch Agent with Authorization
+- Links the deployed agent to the authorization resource
+- Enables the agent to use OAuth for ServiceNow access
+
+### Manual Deployment (Advanced)
+
+If you need to run the steps individually:
 
 ```bash
-# Step 1: Set up environment variables
-export PROJECT_ID=your-project-id
-export BUCKET_NAME=${PROJECT_ID}-agent-staging
+# Step 1: Deploy the agent
+REASONING_ENGINE_URI=$(python deploy_to_agent_engine.py)
 
-# Step 2: Create staging bucket (if it doesn't exist)
-gsutil mb -p ${PROJECT_ID} gs://${BUCKET_NAME}
+# Step 2: Create authorization
+./scripts/create_authorization.sh
 
-# Step 3: Deploy the agent
-adk deploy agent_engine --project=$PROJECT_ID \
-    --region=us-central1 \
-    --staging_bucket=gs://${BUCKET_NAME} \
-    --display_name="ServiceNow Agent" ./snow_agent
+# Step 3: Link agent to authorization
+export REASONING_ENGINE=$REASONING_ENGINE_URI
+./scripts/create_or_patch_agent.sh
 ```
-
-**Note**: ADK automatically reads the `.env` file from `snow_agent/.env` during deployment.
-
-### Method 2: Python Script (Alternative)
-
-For automated deployment with additional validation:
-
-```bash
-python deploy_to_agent_engine.py
-```
-
-The script provides:
-- Environment variable validation
-- Automatic Secret Manager integration
-- Detailed error handling and logging
-- Automated bucket creation
 
 ## Troubleshooting
 
 ### Common Issues and Solutions
 
-#### 1. Agent Failed to Start
-**Error**: `Reasoning Engine resource [...] failed to start and cannot serve traffic`
+#### 1. Authentication Error
+**Error**: `No access token found for auth_id: None`
 
-**Solutions**:
-- Ensure all dependencies are in `deploy_requirements.txt`
-- Use stable model versions (e.g., `gemini-1.5-flash`)
-- Check for import errors in the deployment logs
-- Verify environment variables are correctly set
+**Solution**: Ensure AUTH_ID is set in your .env file and matches the authorization resource ID.
 
-#### 2. Import Errors
-**Issue**: Module import failures in deployment environment
+#### 2. Serialization Error
+**Error**: `Failed to serialize agent engine`
 
-**Solutions**:
-- Use absolute imports instead of relative imports
-- Ensure the agent code is in `snow_agent/` directory (not `src/snow_agent/`)
-- Include all transitive dependencies
+**Solution**: This has been fixed in the latest version. Ensure you're using the updated code.
 
-#### 3. Checking Deployment Logs
+#### 3. OAuth Token Error
+**Error**: `OAuthProblemException`
+
+**Solution**: 
+- Verify ServiceNow OAuth client is configured for client credentials flow
+- Check that client ID and secret are correct
+- Ensure ServiceNow instance URL is correct
+
+#### 4. Checking Deployment Logs
 
 View detailed logs in Cloud Console:
 ```
@@ -126,12 +157,11 @@ https://console.cloud.google.com/logs/query?project=YOUR_PROJECT_ID
 Use this query to find deployment logs:
 ```
 resource.type="aiplatform.googleapis.com/ReasoningEngine"
-resource.labels.reasoning_engine_id="YOUR_RESOURCE_ID"
 ```
 
 ### Requirements File
 
-The `deploy_requirements.txt` must be clean without comments:
+The `deploy_requirements.txt` contains all necessary dependencies:
 ```
 google-cloud-aiplatform[adk,agent-engines]>=1.114.0
 google-adk>=1.14.1
@@ -145,71 +175,61 @@ google-cloud-secret-manager>=2.24.0
 
 ## Post-Deployment
 
-### 1. Automatic Security Configuration
-The deployment process automatically:
-- Stores the ServiceNow password in Google Secret Manager
-- Grants the agent service account access to the secret
-- Configures the agent to fetch the password at runtime
-
-No manual IAM configuration is required for Secret Manager access.
+### 1. Verify Deployment
+- Check that all three steps completed successfully
+- The reasoning engine URI is saved in your .env file
+- Authorization resource is created in GCP
 
 ### 2. Test the Agent
-- Access the agent through Vertex AI console
-- Test basic operations like "List all open incidents"
-- Monitor logs for any runtime issues
+Access the agent through:
+- AgentSpace web interface (if configured)
+- Vertex AI console
+- Direct API calls
 
-### 3. Security Features
-- **Password Security**: ServiceNow password is never stored in plain text on the deployed agent
-- **Secret Manager Integration**: Password is securely stored in Google Secret Manager
-- **Automatic IAM**: Service account permissions are automatically configured during deployment
-- **Runtime Fetching**: Password is fetched from Secret Manager only when needed
+### 3. Example Commands
+Test with these ServiceNow operations:
+- "Create a new incident with short description 'Printer not working'"
+- "Show me all open incidents"
+- "Update incident INC0010001 priority to high"
+- "Close incident INC0010001 with resolution 'Fixed'"
 
-### 4. Agent Capabilities
-The deployed agent can:
+### 4. Security Features
+- **OAuth 2.0**: Secure authentication using client credentials flow
+- **GCP Authorization**: Credentials stored securely in GCP, not in code
+- **Token Management**: Access tokens are managed by the runtime
+- **No Plain Text Secrets**: All sensitive data is encrypted
+
+## Agent Capabilities
+
+### Supported Operations
 - **Create**: New ServiceNow records with specified fields
 - **Read**: Search and retrieve existing records
 - **Update**: Modify record fields and states
 - **Delete**: Remove records from ServiceNow
 
-### Example Commands
-- "Create a new incident with short description 'Printer not working'"
-- "Show me all incidents assigned to john.doe"
-- "Update incident INC0010001 priority to high"
-- "Resolve INC0010001 with resolution code 'Solved'"
+### Supported Tables
+- incident
+- change_request
+- problem
+- sc_task
+- sc_req_item
+- cmdb_ci
 
 ## Important Notes
 
-1. **Security**: 
-   - ServiceNow password is automatically uploaded to Google Secret Manager during deployment
-   - The password in .env file is only used during deployment, not stored on the agent
-   - IAM permissions are automatically configured for the agent service account
-2. **File Structure**: Agent code must be in `snow_agent/` directory
-3. **Model Selection**: Use stable models for production deployments
-4. **Error Handling**: Check logs immediately after deployment for any issues
+1. **OAuth Flow**: The agent uses OAuth 2.0 client credentials flow, not username/password
+2. **Environment Variables**: Critical variables like AUTH_ID must be set for proper operation
+3. **Runtime Token Management**: The agent retrieves OAuth tokens at runtime from GCP
+4. **No Local Testing**: OAuth flow requires deployment to Agent Engine
 
 ## Support
 
 For additional help:
 1. Review Google Cloud logs for detailed error messages
-2. Ensure all prerequisites are met
-3. Verify ServiceNow credentials and API access
-4. Check that all required Google Cloud APIs are enabled
-
-## Quick Reference
-
-Based on successful deployment example:
-```bash
-# Complete deployment in 3 commands
-PROJECT_ID=your-project-id
-BUCKET_NAME=${PROJECT_ID}-agent-staging
-
-# Deploy (bucket will be created automatically if needed)
-adk deploy agent_engine --project=$PROJECT_ID \
-    --region=us-central1 \
-    --staging_bucket=gs://${BUCKET_NAME} \
-    --display_name="ServiceNow Agent" ./snow_agent
-```
+2. Verify ServiceNow OAuth client configuration
+3. Check that all environment variables are set correctly
+4. Ensure all required Google Cloud APIs are enabled
 
 ---
 
-Last Updated: August 2025
+Last Updated: September 2025
