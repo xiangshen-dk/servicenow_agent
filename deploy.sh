@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # ServiceNow Agent Deployment Script
-# Based on successful deployment example
+set -euo pipefail  # Exit on error, undefined variables, and pipe failures
+
+# Set up error trap for better error handling
+trap 'echo "❌ Deployment failed at line $LINENO. Check logs for details."; exit 1' ERR
 
 echo "🚀 ServiceNow Agent Deployment Script"
 echo "===================================="
@@ -20,28 +23,22 @@ echo "📋 Deployment Configuration:"
 echo "  Project ID: $PROJECT_ID"
 echo "  Region: us-central1"
 echo "  Staging Bucket: gs://$BUCKET_NAME"
-echo "  Agent Directory: ./snow_agent"
 echo ""
 
 # Enable required Google Cloud APIs
 echo "🔧 Enabling required Google Cloud APIs..."
-echo "This may take a few minutes if APIs are not already enabled..."
-
-# List of required APIs
 REQUIRED_APIS=(
     "aiplatform.googleapis.com"
+    "discoveryengine.googleapis.com"
     "secretmanager.googleapis.com"
     "storage-api.googleapis.com"
     "storage-component.googleapis.com"
     "cloudresourcemanager.googleapis.com"
 )
-
-# Enable each API
 for api in "${REQUIRED_APIS[@]}"; do
     echo "  Enabling $api..."
     gcloud services enable $api --project=$PROJECT_ID --quiet
 done
-
 echo "✅ All required APIs enabled"
 echo ""
 
@@ -50,33 +47,34 @@ if [ ! -f "snow_agent/.env" ]; then
     echo "⚠️  Warning: snow_agent/.env file not found"
     echo "Creating from example..."
     cp snow_agent/.env.example snow_agent/.env
-    echo "❗ Please edit snow_agent/.env with your ServiceNow credentials before deploying"
+    echo "❗ Please edit snow_agent/.env with your ServiceNow credentials and other settings before deploying"
     exit 1
 fi
 
-# Source the .env file to get credentials
-export $(grep -v '^#' snow_agent/.env | xargs)
-
-# Check if password is set
-if [ -z "$SERVICENOW_PASSWORD" ]; then
-    echo "❌ Error: SERVICENOW_PASSWORD not found in .env file"
-    exit 1
-fi
-
-# Create/update the secret in Secret Manager
-echo "🔐 Setting up Secret Manager..."
-echo "Creating/updating ServiceNow password secret..."
-
-# Check if secret exists
-if gcloud secrets describe servicenow-password-prod --project=$PROJECT_ID &> /dev/null; then
-    echo "Secret already exists, adding new version..."
-    echo -n "$SERVICENOW_PASSWORD" | gcloud secrets versions add servicenow-password-prod --data-file=- --project=$PROJECT_ID
-else
-    echo "Creating new secret..."
-    echo -n "$SERVICENOW_PASSWORD" | gcloud secrets create servicenow-password-prod --data-file=- --project=$PROJECT_ID
-fi
-
-echo "✅ Secret Manager configured"
+# Source the .env file with proper quoting to handle special characters
+set +a  # Disable automatic export
+while IFS='=' read -r key value; do
+    # Skip comments and empty lines
+    [[ "$key" =~ ^#.*$ ]] && continue
+    [[ -z "$key" ]] && continue
+    
+    # Strip leading/trailing whitespace from key
+    key=$(echo "$key" | xargs)
+    
+    # Strip leading/trailing whitespace and quotes from value
+    # Remove leading/trailing double quotes
+    value="${value#\"}"
+    value="${value%\"}"
+    # Remove leading/trailing single quotes
+    value="${value#\'}"
+    value="${value%\'}"
+    # Trim whitespace
+    value=$(echo "$value" | xargs)
+    
+    # Export the variable
+    export "$key=$value"
+done < snow_agent/.env
+set -a  # Re-enable if needed
 
 # Check if bucket exists, create if not
 echo "🪣 Checking staging bucket..."
@@ -87,44 +85,64 @@ else
     echo "✅ Staging bucket already exists"
 fi
 
-# Deploy the agent
+# --- DEPLOYMENT WORKFLOW ---
+
+# Step 1: Deploy the agent to get the reasoning engine URI
 echo ""
-echo "🚀 Deploying ServiceNow Agent to Google Cloud Agent Engine..."
-echo ""
-
-# Set environment to production for proper logging in Cloud Logging
-export ENVIRONMENT=production
-export LOG_LEVEL=${LOG_LEVEL:-INFO}
-
-echo "📝 Logging Configuration:"
-echo "  ENVIRONMENT: production (structured JSON logs)"
-echo "  LOG_LEVEL: $LOG_LEVEL"
-echo ""
-
-adk deploy agent_engine --project=$PROJECT_ID \
-    --region=us-central1 \
-    --staging_bucket=gs://${BUCKET_NAME} \
-    --display_name="ServiceNow Agent" ./snow_agent
-
-# Check deployment status
-if [ $? -eq 0 ]; then
-    echo ""
-    echo "✅ Deployment completed successfully!"
-    echo ""
-    echo "🔐 Security Configuration:"
-    echo "- ServiceNow password is stored in Secret Manager (not in plain text)"
-    echo "- The agent will automatically fetch the password from Secret Manager"
-    echo "- IAM permissions have been configured for the agent service account"
-    echo ""
-    echo "📝 Next steps:"
-    echo "1. Check the deployment logs in Google Cloud Console"
-    echo "2. Test the agent with queries like 'List all open incidents'"
-    echo "3. Monitor the agent performance and logs"
-    echo ""
-    echo "Note: The password is no longer stored in the .env file on the deployed agent."
-    echo "It's securely fetched from Google Secret Manager at runtime."
-else
-    echo ""
-    echo "❌ Deployment failed. Please check the error messages above."
-    echo "For troubleshooting, see DEPLOYMENT_GUIDE.md"
+echo "STEP 1: Deploying Agent to Agent Engine..."
+# Run deployment and capture output, then extract just the URI from the last line
+DEPLOYMENT_OUTPUT=$(python deploy_to_agent_engine.py 2>&1)
+DEPLOYMENT_EXIT_CODE=$?
+if [ $DEPLOYMENT_EXIT_CODE -ne 0 ]; then
+    echo "❌ Agent deployment failed."
+    echo "$DEPLOYMENT_OUTPUT"
+    exit 1
 fi
+# Extract the URI from the last line of output
+REASONING_ENGINE_URI=$(echo "$DEPLOYMENT_OUTPUT" | tail -n 1)
+echo "✅ Agent deployed successfully."
+echo "   Reasoning Engine URI: $REASONING_ENGINE_URI"
+
+# Save the reasoning engine URI to .env for recovery/future use
+echo ""
+echo "💾 Saving Reasoning Engine URI to .env file..."
+if grep -q "^REASONING_ENGINE=" snow_agent/.env; then
+    # Update existing REASONING_ENGINE line
+    # Use a more robust approach: delete the old line and add the new one
+    grep -v "^REASONING_ENGINE=" snow_agent/.env > snow_agent/.env.tmp
+    echo "REASONING_ENGINE=$REASONING_ENGINE_URI" >> snow_agent/.env.tmp
+    mv snow_agent/.env.tmp snow_agent/.env
+    echo "✅ Updated REASONING_ENGINE in .env"
+else
+    # Add REASONING_ENGINE if it doesn't exist
+    echo "REASONING_ENGINE=$REASONING_ENGINE_URI" >> snow_agent/.env
+    echo "✅ Added REASONING_ENGINE to .env"
+fi
+
+# Step 2: Create the authorization resource
+echo ""
+echo "STEP 2: Creating GCP Authorization resource..."
+./scripts/create_authorization.sh
+if [ $? -ne 0 ]; then
+    echo "❌ Authorization creation failed."
+    exit 1
+fi
+echo "✅ Authorization resource created successfully."
+
+# Step 3: Patch the agent with the authorization
+echo ""
+echo "STEP 3: Patching agent with authorization..."
+export REASONING_ENGINE=$REASONING_ENGINE_URI
+./scripts/create_or_patch_agent.sh
+if [ $? -ne 0 ]; then
+    echo "❌ Agent patching failed."
+    exit 1
+fi
+echo "✅ Agent patched successfully."
+
+echo ""
+echo "🎉 Deployment and configuration complete!"
+echo ""
+echo "📝 Next steps:"
+echo "1. Test the agent in the AgentSpace web interface or via the API."
+echo "2. Monitor the agent's performance and logs in Google Cloud Console."

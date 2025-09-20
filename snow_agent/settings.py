@@ -1,10 +1,6 @@
-from typing import Any, Optional, List, Union
+from typing import Optional, List, Union
 from pydantic_settings import BaseSettings
-from pydantic import Field, SecretStr, field_validator
-import os
-import logging
-
-logger = logging.getLogger(__name__)
+from pydantic import Field, field_validator
 
 
 class ServiceNowSettings(BaseSettings):
@@ -14,60 +10,6 @@ class ServiceNowSettings(BaseSettings):
         default="https://ven04789.service-now.com",
         description="ServiceNow instance URL (e.g., https://dev123456.service-now.com)"
     )
-    username: str = Field(
-        ...,
-        description="ServiceNow username for API access"
-    )
-    password: SecretStr = Field(
-        default=None,
-        description="ServiceNow password for API access"
-    )
-    
-    def __init__(self, **kwargs):
-        """Initialize settings, fetching password from Secret Manager if needed."""
-        super().__init__(**kwargs)
-        
-        # If password is not set, try to fetch from Secret Manager
-        if not self.password:
-            password_value = self._get_password_from_secret_manager()
-            if password_value:
-                self.password = SecretStr(password_value)
-            else:
-                # Fall back to environment variable
-                env_password = os.getenv("SERVICENOW_PASSWORD")
-                if env_password:
-                    self.password = SecretStr(env_password)
-                else:
-                    raise ValueError("ServiceNow password not found in Secret Manager or environment variables")
-    
-    def _get_password_from_secret_manager(self) -> Optional[str]:
-        """Fetch password from Google Secret Manager."""
-        try:
-            from google.cloud import secretmanager
-            
-            # Get project ID from environment
-            project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-            if not project_id:
-                logger.warning("GOOGLE_CLOUD_PROJECT not set, cannot fetch from Secret Manager")
-                return None
-            
-            # Create the Secret Manager client
-            client = secretmanager.SecretManagerServiceClient()
-            
-            # Build the resource name of the secret
-            secret_name = f"projects/{project_id}/secrets/servicenow-password-prod/versions/latest"
-            
-            # Access the secret version
-            response = client.access_secret_version(request={"name": secret_name})
-            
-            # Return the decoded payload
-            password = response.payload.data.decode("UTF-8")
-            logger.info("Successfully retrieved ServiceNow password from Secret Manager")
-            return password
-            
-        except Exception as e:
-            logger.warning(f"Could not fetch password from Secret Manager: {e}")
-            return None
     
     # Tables configuration
     allowed_tables: Union[List[str], str] = Field(
@@ -120,6 +62,17 @@ class AgentSettings(BaseSettings):
     model: str = Field(
         default="gemini-2.5-flash",
         description="Google AI model to use"
+    )
+    
+    auth_id: Optional[str] = Field(
+        default=None,
+        description="The ID of the GCP Authorization resource to use for authentication.",
+        alias="AUTH_ID"  # Read from AUTH_ID env var directly, bypassing AGENT_ prefix
+    )
+
+    agent_version: str = Field(
+        default="0.0.1",
+        description="The version of the agent."
     )
     
     class Config:

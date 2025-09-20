@@ -6,7 +6,7 @@ An AI-powered agent that enables natural language interaction with ServiceNow in
 
 - 🤖 Natural language processing for ServiceNow operations
 - 📝 Full CRUD support (Create, Read, Update, Delete)
-- 🔒 Secure credential management via Google Secret Manager
+- 🔒 Secure OAuth 2.0 authentication via GCP Authorization
 - 📊 Support for multiple ServiceNow tables
 - ☁️ Deployable to Google Cloud Agent Engine
 
@@ -16,7 +16,7 @@ An AI-powered agent that enables natural language interaction with ServiceNow in
 
 - Python 3.13+
 - Google Cloud SDK with ADK
-- ServiceNow instance with API access
+- ServiceNow instance with an OAuth 2.0 client ID and secret
 - Google Cloud project with billing enabled
 
 ### Setup
@@ -32,53 +32,63 @@ uv sync
 2. **Configure credentials**:
 ```bash
 cp snow_agent/.env.example snow_agent/.env
-# Edit snow_agent/.env with your ServiceNow credentials
+# Edit snow_agent/.env with your GCP and ServiceNow OAuth credentials
 ```
 
 3. **Run locally**:
-```bash
-adk web
-```
+The new OAuth flow requires deployment to Agent Engine to function correctly, as it relies on the runtime to provide the access token. Local execution with `adk web` is not supported with this authentication method.
 
 ## Deployment
 
-### Quick Deploy
+The deployment process is now a multi-step process orchestrated by the `deploy.sh` script.
 
-```bash
-export PROJECT_ID=your-gcp-project
-./deploy.sh
-```
+1.  **Set Project ID**:
+    ```bash
+    export PROJECT_ID=your-gcp-project
+    ```
 
-### Manual Deploy
+2.  **Run Deployment Script**:
+    ```bash
+    ./deploy.sh
+    ```
 
-```bash
-export PROJECT_ID=your-gcp-project
-export BUCKET_NAME=${PROJECT_ID}-agent-staging
-
-adk deploy agent_engine --project=$PROJECT_ID \
-    --region=us-central1 \
-    --staging_bucket=gs://${BUCKET_NAME} \
-    --display_name="ServiceNow Agent" ./snow_agent
-```
+This script will:
+1.  Deploy the agent code to Agent Engine.
+2.  Create a GCP Authorization resource with your ServiceNow OAuth credentials.
+3.  Patch the deployed agent to link it to the new authorization.
 
 For detailed instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
-## Usage Examples
-
-### Basic Commands
-- **Create**: "Create a new incident with short description 'Printer not working'"
-- **Read**: "List all open incidents"
-- **Update**: "Update incident INC0010001 priority to high"
-- **Delete**: "Delete problem INC0010001"
-
 ## Configuration
 
-Create `snow_agent/.env` with:
+Create `snow_agent/.env` with the following variables:
+
 ```
-SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
-SERVICENOW_USERNAME=your-username
-SERVICENOW_PASSWORD=your-password
-GOOGLE_CLOUD_PROJECT=your-project-id
+# Google Cloud / Vertex AI Configuration
+GOOGLE_GENAI_USE_VERTEXAI=1
+GOOGLE_CLOUD_PROJECT=your-gcp-project
+GOOGLE_CLOUD_PROJECT_NUMBER=your-gcp-project-number
+GOOGLE_CLOUD_LOCATION=us-central1
+
+# AgentSpace Configuration
+AS_APP=your-agent-space-app-id
+ASSISTANT_ID=your-assistant-id
+
+# ServiceNow OAuth Configuration
+SERVICENOW_INSTANCE_URL=https://dev123456.service-now.com
+SERVICENOW_CLIENT_ID=your-servicenow-client-id
+SERVICENOW_CLIENT_SECRET=your-servicenow-client-secret
+
+# Agent Configuration
+AGENT_NAME=servicenow_agent
+AGENT_DISPLAY_NAME="ServiceNow Agent"
+AGENT_DESCRIPTION="An AI agent for managing ServiceNow records through natural language"
+TOOL_DESCRIPTION="A tool to perform Create, Read, Update, and Delete operations on ServiceNow records."
+AGENT_MODEL=gemini-2.5-flash
+AGENT_VERSION=20250918.1
+
+# GCP Authorization Configuration
+AUTH_ID=servicenow-oauth-auth
 ```
 
 ## Supported Tables
@@ -100,11 +110,11 @@ Built with:
 
 ## Security
 
-- **Secret Manager Integration**: ServiceNow password automatically stored in Google Secret Manager during deployment
-- **No Plain Text Passwords**: Password is never stored in plain text on the deployed agent
-- **Automatic IAM Configuration**: Service account permissions are automatically set up
-- **Runtime Secret Access**: Password is fetched from Secret Manager only when needed
-- **HTTPS Communications**: All ServiceNow API calls use secure HTTPS
+- **OAuth 2.0**: Uses the secure OAuth 2.0 client credentials flow for authentication.
+- **GCP Authorization**: ServiceNow client ID and secret are securely stored in a GCP Authorization resource, not in the agent's code or environment.
+- **Automatic IAM Configuration**: The deployment script handles the necessary IAM permissions for the agent to access the authorization resource.
+- **Managed Access Tokens**: The Agent Engine runtime manages the OAuth access token lifecycle, including fetching and refreshing tokens. The agent code only handles short-lived access tokens.
+- **HTTPS Communications**: All ServiceNow API calls use secure HTTPS.
 
 ## License
 

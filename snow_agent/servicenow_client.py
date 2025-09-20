@@ -17,14 +17,21 @@ class ServiceNowClient:
     def __init__(self, settings: ServiceNowSettings):
         self.settings = settings
         self.base_url = settings.instance_url.rstrip("/")
-        self.auth = (settings.username, settings.password.get_secret_value())
-        self.headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json"
-        }
+        self._client = httpx.AsyncClient(timeout=settings.api_timeout)
         logger.info(f"ServiceNow client initialized for instance: {self.base_url}")
-        logger.info(f"Authenticated as user: {settings.username}")
-    
+
+    async def close(self):
+        """Close the HTTP client."""
+        await self._client.aclose()
+
+    def _get_auth_headers(self, access_token: str) -> Dict[str, str]:
+        """Get headers for authentication."""
+        return {
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
     def _build_url(self, table: str, sys_id: Optional[str] = None) -> str:
         """Build the API URL for a given table and optional sys_id."""
         url = f"{self.base_url}/api/now/table/{table}"
@@ -43,6 +50,7 @@ class ServiceNowClient:
         self,
         table: str,
         data: Dict[str, Any],
+        access_token: str,
         fields: Optional[List[str]] = None
     ) -> CRUDResponse:
         """Create a new record in ServiceNow."""
@@ -60,38 +68,26 @@ class ServiceNowClient:
             params["sysparm_fields"] = ",".join(fields)
         
         try:
-            logger.info(f"Making POST request to: {url}")
-            logger.debug(f"Request headers: {self.headers}")
-            logger.debug(f"Request params: {params}")
+            headers = self._get_auth_headers(access_token)
+            response = await self._client.post(
+                url,
+                json=data,
+                headers=headers,
+                params=params
+            )
+            response.raise_for_status()
             
-            async with httpx.AsyncClient(timeout=self.settings.api_timeout) as client:
-                response = await client.post(
-                    url,
-                    json=data,
-                    auth=self.auth,
-                    headers=self.headers,
-                    params=params
-                )
-                logger.info(f"API Response Status: {response.status_code}")
-                response.raise_for_status()
-                
-                result = response.json()
-                created_record = result.get("result", {})
-                if created_record.get("sys_id"):
-                    logger.info(f"Created record with sys_id: {created_record['sys_id']}")
-                if created_record.get("number"):
-                    logger.info(f"Created record number: {created_record['number']}")
-                
-                return CRUDResponse(
-                    success=True,
-                    operation="create",
-                    table=table,
-                    message=f"Record created successfully in {table}",
-                    data=[created_record],
-                    count=1
-                )
+            result = response.json().get("result", {})
+            return CRUDResponse(
+                success=True,
+                operation="create",
+                table=table,
+                message=f"Record created successfully in {table}",
+                data=[result],
+                count=1
+            )
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error creating record: {e}")
+            logger.error(f"HTTP error creating record: {e.response.text}")
             return CRUDResponse(
                 success=False,
                 operation="create",
@@ -110,6 +106,7 @@ class ServiceNowClient:
     async def read_records(
         self,
         table: str,
+        access_token: str,
         query: Optional[Dict[str, Any]] = None,
         fields: Optional[List[str]] = None,
         limit: Optional[int] = None
@@ -127,16 +124,12 @@ class ServiceNowClient:
         params = {}
         
         if query:
-            # Build query string
             query_parts = []
             for key, value in query.items():
-                # Support operators in the key (e.g., "opened_at>=2025-06-01")
                 if any(op in key for op in ['>=', '<=', '>', '<', '!=']):
                     query_parts.append(f"{key}{value}")
-                # Support special query syntax in value (e.g., {"state": "!=6"})
                 elif isinstance(value, str) and value.startswith(('>=', '<=', '>', '<', '!=')):
                     query_parts.append(f"{key}{value}")
-                # Support BETWEEN queries (e.g., {"opened_at": "BETWEEN2025-06-01@2025-07-31"})
                 elif isinstance(value, str) and value.upper().startswith('BETWEEN'):
                     query_parts.append(f"{key}{value}")
                 else:
@@ -152,41 +145,25 @@ class ServiceNowClient:
             params["sysparm_limit"] = self.settings.max_records
         
         try:
-            logger.info(f"Making GET request to: {url}")
-            if params.get("sysparm_query"):
-                logger.info(f"Query string: {params['sysparm_query']}")
-            logger.debug(f"Request params: {params}")
+            headers = self._get_auth_headers(access_token)
+            response = await self._client.get(
+                url,
+                headers=headers,
+                params=params
+            )
+            response.raise_for_status()
             
-            async with httpx.AsyncClient(timeout=self.settings.api_timeout) as client:
-                response = await client.get(
-                    url,
-                    auth=self.auth,
-                    headers=self.headers,
-                    params=params
-                )
-                logger.info(f"API Response Status: {response.status_code}")
-                response.raise_for_status()
-                
-                result = response.json()
-                records = result.get("result", [])
-                
-                logger.info(f"Retrieved {len(records)} record(s) from {table}")
-                if records and len(records) > 0:
-                    logger.debug(f"First record sys_id: {records[0].get('sys_id', 'N/A')}")
-                    if records[0].get('number'):
-                        logger.debug(f"First record number: {records[0].get('number')}")
-                
-                return CRUDResponse(
-                    success=True,
-                    operation="read",
-                    table=table,
-                    message=f"Retrieved {len(records)} record(s) from {table}",
-                    data=records,
-                    count=len(records)
-                )
+            records = response.json().get("result", [])
+            return CRUDResponse(
+                success=True,
+                operation="read",
+                table=table,
+                message=f"Retrieved {len(records)} record(s) from {table}",
+                data=records,
+                count=len(records)
+            )
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error reading records from {table}: Status {e.response.status_code}")
-            logger.error(f"Response body: {e.response.text}")
+            logger.error(f"HTTP error reading records: {e.response.text}")
             return CRUDResponse(
                 success=False,
                 operation="read",
@@ -194,19 +171,20 @@ class ServiceNowClient:
                 error=f"HTTP {e.response.status_code}: {e.response.text}"
             )
         except Exception as e:
-            logger.error(f"Unexpected error reading records from {table}: {type(e).__name__}: {str(e)}")
+            logger.error(f"Error reading records: {e}")
             return CRUDResponse(
                 success=False,
                 operation="read",
                 table=table,
                 error=str(e)
             )
-    
+
     async def update_record(
         self,
         table: str,
         sys_id: str,
         data: Dict[str, Any],
+        access_token: str,
         fields: Optional[List[str]] = None
     ) -> CRUDResponse:
         """Update an existing record in ServiceNow."""
@@ -224,37 +202,26 @@ class ServiceNowClient:
             params["sysparm_fields"] = ",".join(fields)
         
         try:
-            logger.info(f"Making PATCH request to: {url}")
-            logger.info(f"Updating record sys_id: {sys_id}")
-            logger.debug(f"Update data: {json.dumps(data, indent=2)}")
+            headers = self._get_auth_headers(access_token)
+            response = await self._client.patch(
+                url,
+                json=data,
+                headers=headers,
+                params=params
+            )
+            response.raise_for_status()
             
-            async with httpx.AsyncClient(timeout=self.settings.api_timeout) as client:
-                response = await client.patch(
-                    url,
-                    json=data,
-                    auth=self.auth,
-                    headers=self.headers,
-                    params=params
-                )
-                logger.info(f"API Response Status: {response.status_code}")
-                response.raise_for_status()
-                
-                result = response.json()
-                updated_record = result.get("result", {})
-                if updated_record.get("number"):
-                    logger.info(f"Updated record number: {updated_record['number']}")
-                
-                return CRUDResponse(
-                    success=True,
-                    operation="update",
-                    table=table,
-                    message=f"Record {sys_id} updated successfully in {table}",
-                    data=[updated_record],
-                    count=1
-                )
+            updated_record = response.json().get("result", {})
+            return CRUDResponse(
+                success=True,
+                operation="update",
+                table=table,
+                message=f"Record {sys_id} updated successfully in {table}",
+                data=[updated_record],
+                count=1
+            )
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error updating record {sys_id} in {table}: Status {e.response.status_code}")
-            logger.error(f"Response body: {e.response.text}")
+            logger.error(f"HTTP error updating record: {e.response.text}")
             return CRUDResponse(
                 success=False,
                 operation="update",
@@ -262,18 +229,19 @@ class ServiceNowClient:
                 error=f"HTTP {e.response.status_code}: {e.response.text}"
             )
         except Exception as e:
-            logger.error(f"Unexpected error updating record {sys_id} in {table}: {type(e).__name__}: {str(e)}")
+            logger.error(f"Error updating record: {e}")
             return CRUDResponse(
                 success=False,
                 operation="update",
                 table=table,
                 error=str(e)
             )
-    
+
     async def delete_record(
         self,
         table: str,
-        sys_id: str
+        sys_id: str,
+        access_token: str
     ) -> CRUDResponse:
         """Delete a record from ServiceNow."""
         if not self._validate_table(table):
@@ -287,30 +255,22 @@ class ServiceNowClient:
         url = self._build_url(table, sys_id)
         
         try:
-            logger.info(f"Making DELETE request to: {url}")
-            logger.info(f"Deleting record sys_id: {sys_id}")
+            headers = self._get_auth_headers(access_token)
+            response = await self._client.delete(
+                url,
+                headers=headers
+            )
+            response.raise_for_status()
             
-            async with httpx.AsyncClient(timeout=self.settings.api_timeout) as client:
-                response = await client.delete(
-                    url,
-                    auth=self.auth,
-                    headers=self.headers
-                )
-                logger.info(f"API Response Status: {response.status_code}")
-                response.raise_for_status()
-                
-                logger.info(f"Successfully deleted record {sys_id} from {table}")
-                
-                return CRUDResponse(
-                    success=True,
-                    operation="delete",
-                    table=table,
-                    message=f"Record {sys_id} deleted successfully from {table}",
-                    count=1
-                )
+            return CRUDResponse(
+                success=True,
+                operation="delete",
+                table=table,
+                message=f"Record {sys_id} deleted successfully from {table}",
+                count=1
+            )
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error deleting record {sys_id} from {table}: Status {e.response.status_code}")
-            logger.error(f"Response body: {e.response.text}")
+            logger.error(f"HTTP error deleting record: {e.response.text}")
             return CRUDResponse(
                 success=False,
                 operation="delete",
@@ -318,7 +278,7 @@ class ServiceNowClient:
                 error=f"HTTP {e.response.status_code}: {e.response.text}"
             )
         except Exception as e:
-            logger.error(f"Unexpected error deleting record {sys_id} from {table}: {type(e).__name__}: {str(e)}")
+            logger.error(f"Error deleting record: {e}")
             return CRUDResponse(
                 success=False,
                 operation="delete",
