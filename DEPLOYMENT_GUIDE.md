@@ -40,7 +40,6 @@ The ServiceNow agent is an AI-powered tool that enables natural language interac
 The deployment script automatically enables these APIs:
 - Vertex AI API (`aiplatform.googleapis.com`)
 - Discovery Engine API (`discoveryengine.googleapis.com`)
-- Secret Manager API (`secretmanager.googleapis.com`)
 - Cloud Storage APIs (`storage-api.googleapis.com`, `storage-component.googleapis.com`)
 - Cloud Resource Manager API (`cloudresourcemanager.googleapis.com`)
 
@@ -170,7 +169,6 @@ pydantic>=2.11.9
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
 cloudpickle>=3.1.1
-google-cloud-secret-manager>=2.24.0
 ```
 
 ## Post-Deployment

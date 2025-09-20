@@ -30,7 +30,6 @@ echo "🔧 Enabling required Google Cloud APIs..."
 REQUIRED_APIS=(
     "aiplatform.googleapis.com"
     "discoveryengine.googleapis.com"
-    "secretmanager.googleapis.com"
     "storage-api.googleapis.com"
     "storage-component.googleapis.com"
     "cloudresourcemanager.googleapis.com"
