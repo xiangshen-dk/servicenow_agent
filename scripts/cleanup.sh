@@ -93,10 +93,18 @@ if [ -n "${AS_APP:-}" ] && [ -n "${ASSISTANT_ID:-}" ] && [ -n "${AGENT_NAME:-}" 
       -H "X-Goog-User-Project: ${GOOGLE_CLOUD_PROJECT}" \
       "${AGENTS_API_ENDPOINT}")
     
-    AGENT_ID=$(echo "$response" | jq -r --arg NAME "${AGENT_DISPLAY_NAME:-$AGENT_NAME}" '.agents[] | select(.displayName == $NAME) | .name' | cut -d'/' -f10)
+    # Debug: Show available agents
+    echo "Available agents:"
+    echo "$response" | jq -r '.agents[] | "\(.displayName) -> \(.name)"' 2>/dev/null || echo "Could not parse agents list"
     
-    if [ -n "$AGENT_ID" ]; then
-        echo "Found agent with ID: $AGENT_ID"
+    # Extract the full agent resource name
+    AGENT_RESOURCE=$(echo "$response" | jq -r --arg NAME "${AGENT_DISPLAY_NAME:-$AGENT_NAME}" '.agents[] | select(.displayName == $NAME) | .name' 2>/dev/null)
+    
+    if [ -n "$AGENT_RESOURCE" ] && [ "$AGENT_RESOURCE" != "null" ]; then
+        # Extract just the numeric agent ID from the end of the resource path
+        AGENT_ID=$(echo "$AGENT_RESOURCE" | awk -F'/' '{print $NF}')
+        echo "Found agent resource: $AGENT_RESOURCE"
+        echo "Agent ID: $AGENT_ID"
         echo "Deleting agent from AgentSpace..."
         
         delete_response=$(curl -s -w "\n%{http_code}" -X DELETE \
@@ -105,11 +113,15 @@ if [ -n "${AS_APP:-}" ] && [ -n "${ASSISTANT_ID:-}" ] && [ -n "${AGENT_NAME:-}" 
           "${AGENTS_API_ENDPOINT}/${AGENT_ID}")
         
         http_code=$(echo "$delete_response" | tail -n1)
+        response_body=$(echo "$delete_response" | sed '$d')
         
         if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 204 ]; then
             echo -e "${GREEN}✅ Agent removed from AgentSpace${NC}"
         else
             echo -e "${YELLOW}⚠️  Could not remove agent from AgentSpace (HTTP $http_code)${NC}"
+            if [ -n "$response_body" ]; then
+                echo "   Error details: $response_body"
+            fi
             echo "   You may need to remove it manually from the AgentSpace console"
         fi
     else
@@ -146,11 +158,20 @@ if [ -n "${AUTH_ID:-}" ]; then
              "${DISCOVERY_ENGINE_API_BASE_URL}/projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}")
         
         http_code=$(echo "$delete_response" | tail -n1)
+        response_body=$(echo "$delete_response" | sed '$d')
         
         if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 204 ]; then
             echo -e "${GREEN}✅ Authorization resource deleted${NC}"
         else
             echo -e "${YELLOW}⚠️  Could not delete authorization (HTTP $http_code)${NC}"
+            if [ -n "$response_body" ]; then
+                echo "   Error details:"
+                echo "$response_body" | jq . 2>/dev/null || echo "$response_body"
+            fi
+            if [ "$http_code" -eq 400 ]; then
+                echo "   This usually means the authorization is still in use by an agent."
+                echo "   Try deleting the agent from AgentSpace first."
+            fi
             echo "   You may need to delete it manually"
         fi
     else
@@ -176,11 +197,19 @@ if [ -n "${REASONING_ENGINE:-}" ]; then
         
         echo "Deleting reasoning engine ID: $ENGINE_ID"
         
-        # Use gcloud to delete the reasoning engine
-        if gcloud ai reasoning-engines delete "$ENGINE_ID" \
-            --project="$PROJECT" \
-            --region="$LOCATION" \
-            --quiet 2>/dev/null; then
+        # Use REST API to delete the reasoning engine since gcloud doesn't have this command
+        AUTH_TOKEN=$(gcloud auth print-access-token)
+        VERTEX_API_BASE_URL="https://${LOCATION}-aiplatform.googleapis.com/v1beta1"
+        
+        delete_response=$(curl -s -w "\n%{http_code}" -X DELETE \
+            -H "Authorization: Bearer ${AUTH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${VERTEX_API_BASE_URL}/projects/${PROJECT}/locations/${LOCATION}/reasoningEngines/${ENGINE_ID}")
+        
+        http_code=$(echo "$delete_response" | tail -n1)
+        response_body=$(echo "$delete_response" | sed '$d')
+        
+        if [ "$http_code" -eq 200 ] || [ "$http_code" -eq 204 ]; then
             echo -e "${GREEN}✅ Reasoning Engine deleted${NC}"
             
             # Remove REASONING_ENGINE from .env
@@ -189,7 +218,15 @@ if [ -n "${REASONING_ENGINE:-}" ]; then
             mv snow_agent/.env.tmp snow_agent/.env
             echo -e "${GREEN}✅ Removed REASONING_ENGINE from .env${NC}"
         else
-            echo -e "${YELLOW}⚠️  Could not delete reasoning engine${NC}"
+            echo -e "${YELLOW}⚠️  Could not delete reasoning engine (HTTP $http_code)${NC}"
+            if [ -n "$response_body" ]; then
+                echo "   Error details:"
+                echo "$response_body" | jq . 2>/dev/null || echo "$response_body"
+            fi
+            echo "   Common issues:"
+            echo "   - Permission denied: Ensure you have 'Vertex AI Administrator' role"
+            echo "   - Resource in use: The engine might be referenced by AgentSpace"
+            echo "   - 404 error: The engine might already be deleted"
             echo "   You may need to delete it manually from the Vertex AI console"
         fi
     else

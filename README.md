@@ -40,16 +40,11 @@ The new OAuth flow requires deployment to Agent Engine to function correctly, as
 
 ## Deployment
 
-The deployment process is now a multi-step process orchestrated by the `deploy.sh` script.
+The deployment process is orchestrated by the `deploy.sh` script, which reads all configuration from your `.env` file.
 
-1.  **Set Project ID**:
+1.  **Run Deployment Script**:
     ```bash
-    export PROJECT_ID=your-gcp-project
-    ```
-
-2.  **Run Deployment Script**:
-    ```bash
-    ./deploy.sh
+    ./scripts/deploy.sh
     ```
 
 This script will:
