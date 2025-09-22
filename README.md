@@ -57,6 +57,19 @@ This script will:
 2.  Create a GCP Authorization resource with your ServiceNow OAuth credentials.
 3.  Patch the deployed agent to link it to the new authorization.
 
+### Cleanup
+
+To remove all deployed resources:
+```bash
+./scripts/cleanup.sh
+```
+
+This will:
+- Remove the agent from AgentSpace (if configured)
+- Delete the GCP Authorization resource
+- Delete the Reasoning Engine from Vertex AI
+- Optionally delete the staging bucket
+
 For detailed instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).
 
 ## Configuration
