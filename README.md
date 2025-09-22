@@ -27,6 +27,7 @@ git clone <repository-url>
 cd servicenow-agent
 pip install uv
 uv sync
+source .venv/bin/activate
 ```
 
 2. **Configure credentials**:
