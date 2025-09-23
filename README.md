@@ -46,20 +46,40 @@ adk web
 ### Quick Deploy
 
 ```bash
-export PROJECT_ID=your-gcp-project
+# Configure your environment
+cp snow_agent/.env.example snow_agent/.env
+# Edit snow_agent/.env with your credentials
+
+# Deploy the agent
 ./deploy.sh
 ```
 
-### Manual Deploy
+### Management Scripts
 
+The project includes management scripts in the `scripts/` directory:
+
+- **`scripts/register_agent.sh`**: Register/unregister agents to/from AgentSpace apps
+- **`scripts/remove_agent_engine.sh`**: Remove deployed reasoning engines
+
+#### Register Agent to AgentSpace
 ```bash
-export PROJECT_ID=your-gcp-project
-export BUCKET_NAME=${PROJECT_ID}-agent-staging
+# Register an agent
+./scripts/register_agent.sh --register \
+  projects/123/locations/us-central1/reasoningEngines/456 \
+  my-app_1234567890
 
-adk deploy agent_engine --project=$PROJECT_ID \
-    --region=us-central1 \
-    --staging_bucket=gs://${BUCKET_NAME} \
-    --display_name="ServiceNow Agent" ./snow_agent
+# Unregister an agent
+./scripts/register_agent.sh --unregister my-app_1234567890
+```
+
+#### Remove Agent Engine
+```bash
+# Remove by full URI
+./scripts/remove_agent_engine.sh \
+  projects/123/locations/us-central1/reasoningEngines/456
+
+# Remove by ID (uses project/location from .env)
+./scripts/remove_agent_engine.sh 456
 ```
 
 For detailed instructions, see [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md).

@@ -1,137 +1,213 @@
 # ServiceNow Agent Deployment Guide
 
-This guide consolidates all deployment information for the ServiceNow agent to Google Cloud's Vertex AI Agent Engine.
+This guide provides comprehensive deployment instructions for the ServiceNow agent to Google Cloud's Vertex AI Agent Engine.
 
 ## Table of Contents
-1. [Overview](#overview)
-2. [Prerequisites](#prerequisites)
+1. [Prerequisites](#prerequisites)
+2. [Quick Start](#quick-start)
 3. [Deployment Methods](#deployment-methods)
-4. [Troubleshooting](#troubleshooting)
-5. [Post-Deployment](#post-deployment)
-
-## Overview
-
-The ServiceNow agent is an AI-powered tool that enables natural language interaction with ServiceNow instances for performing CRUD operations on records. It has been prepared for deployment to Google Cloud's Vertex AI Agent Engine.
-
-### Key Features
-- Natural language processing for ServiceNow operations
-- Full CRUD support (Create, Read, Update, Delete)
-- Secure credential management via Google Secret Manager
-- Support for multiple ServiceNow tables
-- Comprehensive error handling and logging
+4. [Script Management Tools](#script-management-tools)
+5. [Troubleshooting](#troubleshooting)
+6. [Security](#security)
 
 ## Prerequisites
 
 ### Required Setup
-1. **Google Cloud Project** with billing enabled
-2. **ServiceNow Instance** with API access
-3. **Local Environment**:
-   - Python 3.10+
-   - Google Cloud SDK (`gcloud`)
-   - ADK installed
-
-### Automatic API Enablement
-The deployment scripts automatically enable these required APIs:
-- Vertex AI API (`aiplatform.googleapis.com`)
-- Secret Manager API (`secretmanager.googleapis.com`)
-- Cloud Storage API (`storage-api.googleapis.com`)
-- Cloud Storage Component API (`storage-component.googleapis.com`)
-- Cloud Resource Manager API (`cloudresourcemanager.googleapis.com`)
-
-If automatic enablement fails, you can manually enable them:
-```bash
-gcloud services enable aiplatform.googleapis.com secretmanager.googleapis.com \
-  storage-api.googleapis.com storage-component.googleapis.com \
-  cloudresourcemanager.googleapis.com --project=YOUR_PROJECT_ID
-```
+- **Google Cloud Project** with billing enabled
+- **ServiceNow Instance** with API access
+- **Python 3.10+** with pip/uv
+- **Google Cloud SDK** (`gcloud`) authenticated
+- **ADK** installed (`pip install google-adk`)
 
 ### Environment Configuration
 
-Create a `snow_agent/.env` file with your credentials:
 ```bash
+# Copy and configure environment file
 cp snow_agent/.env.example snow_agent/.env
-# Then edit snow_agent/.env with your values:
-GOOGLE_CLOUD_PROJECT=your-project-id
-GOOGLE_CLOUD_LOCATION=us-central1
-SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
-SERVICENOW_USERNAME=your-username
-SERVICENOW_PASSWORD=your-password
+
+# Edit snow_agent/.env with your values:
+# GOOGLE_CLOUD_PROJECT=your-project-id
+# GOOGLE_CLOUD_LOCATION=us-central1
+# SERVICENOW_INSTANCE_URL=https://your-instance.service-now.com
+# SERVICENOW_USERNAME=your-username
+# SERVICENOW_PASSWORD=your-password
+```
+
+## Quick Start
+
+```bash
+# 1. Configure environment
+cp snow_agent/.env.example snow_agent/.env
+# Edit .env with your credentials
+
+# 2. Deploy the agent
+./deploy.sh
+
+# The script automatically:
+# - Enables required Google Cloud APIs
+# - Creates staging bucket
+# - Deploys to Vertex AI Agent Engine
+# - Configures Secret Manager
+# - Sets up IAM permissions
 ```
 
 ## Deployment Methods
 
-### Method 1: ADK CLI (Recommended)
-
-The simplest and most reliable deployment method uses the ADK CLI directly:
+### Method 1: Automated Script (Recommended)
 
 ```bash
-# Step 1: Set up environment variables
+./deploy.sh
+```
+
+Features:
+- ✅ Automatic API enablement
+- ✅ Staging bucket creation
+- ✅ Secret Manager integration
+- ✅ IAM configuration
+- ✅ Color-coded output
+- ✅ Error handling
+
+### Method 2: Manual ADK CLI
+
+```bash
 export PROJECT_ID=your-project-id
 export BUCKET_NAME=${PROJECT_ID}-agent-staging
 
-# Step 2: Create staging bucket (if it doesn't exist)
+# Create bucket if needed
 gsutil mb -p ${PROJECT_ID} gs://${BUCKET_NAME}
 
-# Step 3: Deploy the agent
+# Deploy
 adk deploy agent_engine --project=$PROJECT_ID \
     --region=us-central1 \
     --staging_bucket=gs://${BUCKET_NAME} \
     --display_name="ServiceNow Agent" ./snow_agent
 ```
 
-**Note**: ADK automatically reads the `.env` file from `snow_agent/.env` during deployment.
+## Script Management Tools
 
-### Method 2: Python Script (Alternative)
-
-For automated deployment with additional validation:
-
-```bash
-python deploy_to_agent_engine.py
+### Project Structure
+```
+/
+├── deploy.sh                       # Main deployment script
+├── deploy_to_agent_engine.py      # Python deployment module
+├── scripts/
+│   ├── register_agent.sh          # AgentSpace registration
+│   └── remove_agent_engine.sh     # Engine removal tool
+└── snow_agent/
+    └── requirements.txt            # Dependencies
 ```
 
-The script provides:
-- Environment variable validation
-- Automatic Secret Manager integration
-- Detailed error handling and logging
-- Automated bucket creation
+### Agent Registration
+
+Register or unregister agents with AgentSpace apps:
+
+```bash
+# Register agent to app
+./scripts/register_agent.sh --register \
+  <reasoning_engine_uri> <app_id>
+
+# Unregister agent from app
+./scripts/register_agent.sh --unregister <app_id> [agent_name]
+```
+
+### Agent Engine Removal
+
+Remove deployed reasoning engines:
+
+```bash
+# Remove by full URI
+./scripts/remove_agent_engine.sh <reasoning_engine_uri>
+
+# Remove by ID (uses .env for project/location)
+./scripts/remove_agent_engine.sh <engine_id>
+```
+
+⚠️ **Warning**: Deletion is permanent. Script requires typing "DELETE" to confirm.
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Common Issues
 
-#### 1. Agent Failed to Start
-**Error**: `Reasoning Engine resource [...] failed to start and cannot serve traffic`
-
-**Solutions**:
-- Ensure all dependencies are in `deploy_requirements.txt`
+#### Agent Failed to Start
+- Check all dependencies in `snow_agent/requirements.txt`
+- Verify environment variables in `.env`
 - Use stable model versions (e.g., `gemini-1.5-flash`)
-- Check for import errors in the deployment logs
-- Verify environment variables are correctly set
+- Review deployment logs in Cloud Console
 
-#### 2. Import Errors
-**Issue**: Module import failures in deployment environment
-
-**Solutions**:
-- Use absolute imports instead of relative imports
-- Ensure the agent code is in `snow_agent/` directory (not `src/snow_agent/`)
+#### Import Errors
+- Use absolute imports (not relative)
+- Ensure code is in `snow_agent/` directory
 - Include all transitive dependencies
 
-#### 3. Checking Deployment Logs
+### Viewing Logs
 
-View detailed logs in Cloud Console:
-```
+```bash
+# Cloud Console logs
 https://console.cloud.google.com/logs/query?project=YOUR_PROJECT_ID
-```
 
-Use this query to find deployment logs:
-```
+# Log query for deployment issues
 resource.type="aiplatform.googleapis.com/ReasoningEngine"
-resource.labels.reasoning_engine_id="YOUR_RESOURCE_ID"
+resource.labels.reasoning_engine_id="YOUR_ENGINE_ID"
 ```
 
-### Requirements File
+### Required APIs
 
-The `deploy_requirements.txt` must be clean without comments:
+The deployment script automatically enables:
+- `aiplatform.googleapis.com`
+- `secretmanager.googleapis.com`
+- `storage-api.googleapis.com`
+- `storage-component.googleapis.com`
+- `cloudresourcemanager.googleapis.com`
+
+Manual enablement if needed:
+```bash
+gcloud services enable aiplatform.googleapis.com \
+  secretmanager.googleapis.com storage-api.googleapis.com \
+  storage-component.googleapis.com cloudresourcemanager.googleapis.com \
+  --project=YOUR_PROJECT_ID
+```
+
+## Security
+
+### Automatic Security Features
+- **Secret Manager**: Password stored securely, never in plain text
+- **IAM Configuration**: Service account permissions auto-configured
+- **Runtime Access**: Credentials fetched only when needed
+- **HTTPS Only**: All ServiceNow API calls use secure connections
+
+### Post-Deployment Verification
+1. Verify Secret Manager contains password
+2. Check service account has `secretmanager.secretAccessor` role
+3. Test agent with simple query: "List all open incidents"
+4. Monitor logs for any permission issues
+
+## Agent Capabilities
+
+### Supported Operations
+- **Create**: New ServiceNow records
+- **Read**: Search and retrieve records
+- **Update**: Modify record fields
+- **Delete**: Remove records
+
+### Example Commands
+```
+"Create a new incident with short description 'Printer issue'"
+"Show all incidents assigned to john.doe"
+"Update INC0010001 priority to high"
+"Resolve INC0010001 with resolution 'Fixed'"
+```
+
+### Supported Tables
+- incident
+- change_request
+- problem
+- sc_task
+- sc_req_item
+- cmdb_ci
+
+## Requirements File
+
+The `snow_agent/requirements.txt` should contain:
 ```
 google-cloud-aiplatform[adk,agent-engines]>=1.114.0
 google-adk>=1.14.1
@@ -143,73 +219,6 @@ cloudpickle>=3.1.1
 google-cloud-secret-manager>=2.24.0
 ```
 
-## Post-Deployment
-
-### 1. Automatic Security Configuration
-The deployment process automatically:
-- Stores the ServiceNow password in Google Secret Manager
-- Grants the agent service account access to the secret
-- Configures the agent to fetch the password at runtime
-
-No manual IAM configuration is required for Secret Manager access.
-
-### 2. Test the Agent
-- Access the agent through Vertex AI console
-- Test basic operations like "List all open incidents"
-- Monitor logs for any runtime issues
-
-### 3. Security Features
-- **Password Security**: ServiceNow password is never stored in plain text on the deployed agent
-- **Secret Manager Integration**: Password is securely stored in Google Secret Manager
-- **Automatic IAM**: Service account permissions are automatically configured during deployment
-- **Runtime Fetching**: Password is fetched from Secret Manager only when needed
-
-### 4. Agent Capabilities
-The deployed agent can:
-- **Create**: New ServiceNow records with specified fields
-- **Read**: Search and retrieve existing records
-- **Update**: Modify record fields and states
-- **Delete**: Remove records from ServiceNow
-
-### Example Commands
-- "Create a new incident with short description 'Printer not working'"
-- "Show me all incidents assigned to john.doe"
-- "Update incident INC0010001 priority to high"
-- "Resolve INC0010001 with resolution code 'Solved'"
-
-## Important Notes
-
-1. **Security**: 
-   - ServiceNow password is automatically uploaded to Google Secret Manager during deployment
-   - The password in .env file is only used during deployment, not stored on the agent
-   - IAM permissions are automatically configured for the agent service account
-2. **File Structure**: Agent code must be in `snow_agent/` directory
-3. **Model Selection**: Use stable models for production deployments
-4. **Error Handling**: Check logs immediately after deployment for any issues
-
-## Support
-
-For additional help:
-1. Review Google Cloud logs for detailed error messages
-2. Ensure all prerequisites are met
-3. Verify ServiceNow credentials and API access
-4. Check that all required Google Cloud APIs are enabled
-
-## Quick Reference
-
-Based on successful deployment example:
-```bash
-# Complete deployment in 3 commands
-PROJECT_ID=your-project-id
-BUCKET_NAME=${PROJECT_ID}-agent-staging
-
-# Deploy (bucket will be created automatically if needed)
-adk deploy agent_engine --project=$PROJECT_ID \
-    --region=us-central1 \
-    --staging_bucket=gs://${BUCKET_NAME} \
-    --display_name="ServiceNow Agent" ./snow_agent
-```
-
 ---
 
-Last Updated: August 2025
+Last Updated: September 2025

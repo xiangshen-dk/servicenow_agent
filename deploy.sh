@@ -6,19 +6,45 @@
 echo "🚀 ServiceNow Agent Deployment Script"
 echo "===================================="
 
-# Check if PROJECT_ID is set
-if [ -z "$PROJECT_ID" ]; then
-    echo "❌ Error: PROJECT_ID environment variable is not set"
-    echo "Please run: export PROJECT_ID=your-project-id"
+# Check if .env file exists
+if [ ! -f "snow_agent/.env" ]; then
+    echo "⚠️  Warning: snow_agent/.env file not found"
+    echo "Creating from example..."
+    cp snow_agent/.env.example snow_agent/.env
+    echo "❗ Please edit snow_agent/.env with your ServiceNow credentials before deploying"
     exit 1
 fi
 
-# Set bucket name
-BUCKET_NAME=${PROJECT_ID}-agent-staging
+# Source the .env file to get credentials
+# Use a robust method that handles special characters, spaces, and quotes
+if [ -f snow_agent/.env ]; then
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        [[ "$line" =~ ^#.*$ ]] && continue
+        [[ -z "$line" ]] && continue
+        
+        # Split on first = only
+        key="${line%%=*}"
+        value="${line#*=}"
+        
+        # Export the variable
+        export "$key=$value"
+    done < snow_agent/.env
+fi
+
+# Check if PROJECT_ID is set (from .env or environment)
+if [ -z "$GOOGLE_CLOUD_PROJECT" ]; then
+    echo "❌ Error: GOOGLE_CLOUD_PROJECT not set in .env file"
+    exit 1
+fi
+
+PROJECT_ID="$GOOGLE_CLOUD_PROJECT"
+LOCATION="${GOOGLE_CLOUD_LOCATION:-us-central1}"
+BUCKET_NAME="${PROJECT_ID}-agent-staging"
 
 echo "📋 Deployment Configuration:"
 echo "  Project ID: $PROJECT_ID"
-echo "  Region: us-central1"
+echo "  Location: $LOCATION"
 echo "  Staging Bucket: gs://$BUCKET_NAME"
 echo "  Agent Directory: ./snow_agent"
 echo ""
@@ -44,18 +70,6 @@ done
 
 echo "✅ All required APIs enabled"
 echo ""
-
-# Check if .env file exists
-if [ ! -f "snow_agent/.env" ]; then
-    echo "⚠️  Warning: snow_agent/.env file not found"
-    echo "Creating from example..."
-    cp snow_agent/.env.example snow_agent/.env
-    echo "❗ Please edit snow_agent/.env with your ServiceNow credentials before deploying"
-    exit 1
-fi
-
-# Source the .env file to get credentials
-export $(grep -v '^#' snow_agent/.env | xargs)
 
 # Check if password is set
 if [ -z "$SERVICENOW_PASSWORD" ]; then
@@ -101,10 +115,11 @@ echo "  ENVIRONMENT: production (structured JSON logs)"
 echo "  LOG_LEVEL: $LOG_LEVEL"
 echo ""
 
-adk deploy agent_engine --project=$PROJECT_ID \
-    --region=us-central1 \
-    --staging_bucket=gs://${BUCKET_NAME} \
-    --display_name="ServiceNow Agent" ./snow_agent
+# Use the Python deployment script in the root directory
+python deploy_to_agent_engine.py \
+    --project-id=$PROJECT_ID \
+    --location=$LOCATION \
+    --staging-bucket=gs://${BUCKET_NAME}
 
 # Check deployment status
 if [ $? -eq 0 ]; then
