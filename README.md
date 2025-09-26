@@ -75,8 +75,7 @@ Create `snow_agent/.env` with the following variables:
 ```
 # Google Cloud / Vertex AI Configuration
 GOOGLE_GENAI_USE_VERTEXAI=1
-GOOGLE_CLOUD_PROJECT=your-gcp-project
-GOOGLE_CLOUD_PROJECT_NUMBER=your-gcp-project-number
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 GOOGLE_CLOUD_LOCATION=us-central1
 
 # AgentSpace Configuration

@@ -54,7 +54,7 @@ else
 fi
 
 # Validate required variables
-required_vars=("GOOGLE_CLOUD_PROJECT" "GOOGLE_CLOUD_PROJECT_NUMBER" "GOOGLE_CLOUD_LOCATION")
+required_vars=("GOOGLE_CLOUD_PROJECT" "GOOGLE_CLOUD_LOCATION")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var:-}" ]; then
         echo -e "${RED}❌ Error: Required environment variable $var is not set in .env${NC}"

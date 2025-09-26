@@ -18,7 +18,7 @@ else
 fi
 
 # Validate required variables
-required_vars=("GOOGLE_CLOUD_PROJECT" "GOOGLE_CLOUD_PROJECT_NUMBER" "GOOGLE_CLOUD_LOCATION" "AS_APP" "ASSISTANT_ID" "AGENT_NAME" "AGENT_DISPLAY_NAME" "AGENT_DESCRIPTION" "TOOL_DESCRIPTION" "AUTH_ID" "REASONING_ENGINE")
+required_vars=("GOOGLE_CLOUD_PROJECT" "GOOGLE_CLOUD_LOCATION" "AS_APP" "ASSISTANT_ID" "AGENT_NAME" "AGENT_DISPLAY_NAME" "AGENT_DESCRIPTION" "TOOL_DESCRIPTION" "AUTH_ID" "REASONING_ENGINE")
 for var in "${required_vars[@]}"; do
     if [ -z "${!var}" ]; then
         echo "❌ Error: Required environment variable $var is not set in .env"
@@ -61,7 +61,7 @@ if [ -n "$AGENT_ID" ]; then
       "adk_agent_definition": {
         "tool_settings": { "tool_description": "${TOOL_DESCRIPTION}" },
         "provisioned_reasoning_engine": { "reasoning_engine": "${REASONING_ENGINE}" },
-        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT_NUMBER}/locations/global/authorizations/${AUTH_ID}" ]
+        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}" ]
       }
     }
 EOF
@@ -78,7 +78,7 @@ else
       "adk_agent_definition": {
         "tool_settings": { "tool_description": "${TOOL_DESCRIPTION}" },
         "provisioned_reasoning_engine": { "reasoning_engine": "${REASONING_ENGINE}" },
-        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT_NUMBER}/locations/global/authorizations/${AUTH_ID}" ]
+        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}" ]
       }
     }
 EOF
