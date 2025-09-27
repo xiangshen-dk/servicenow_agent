@@ -80,7 +80,7 @@ GOOGLE_CLOUD_LOCATION=us-central1
 
 # AgentSpace Configuration
 AS_APP=your-agent-space-app-id
-ASSISTANT_ID=your-assistant-id
+ASSISTANT_ID=default_assistant
 
 # ServiceNow OAuth Configuration
 SERVICENOW_INSTANCE_URL=https://dev123456.service-now.com

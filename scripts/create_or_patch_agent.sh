@@ -26,8 +26,17 @@ for var in "${required_vars[@]}"; do
     fi
 done
 
+# Get project number from project ID
+echo "🔍 Getting project number from project ID..."
+GOOGLE_CLOUD_PROJECT_NUMBER=$(gcloud projects describe ${GOOGLE_CLOUD_PROJECT} --format="value(projectNumber)")
+if [ -z "$GOOGLE_CLOUD_PROJECT_NUMBER" ]; then
+    echo "❌ Error: Could not retrieve project number for project $GOOGLE_CLOUD_PROJECT"
+    exit 1
+fi
+
 echo "🚀 Creating or patching AgentSpace Agent..."
 echo "   Project: $GOOGLE_CLOUD_PROJECT"
+echo "   Project Number: $GOOGLE_CLOUD_PROJECT_NUMBER"
 echo "   Agent Name: $AGENT_NAME"
 echo "   Display Name: $AGENT_DISPLAY_NAME"
 echo "   Reasoning Engine: $REASONING_ENGINE"
@@ -61,7 +70,7 @@ if [ -n "$AGENT_ID" ]; then
       "adk_agent_definition": {
         "tool_settings": { "tool_description": "${TOOL_DESCRIPTION}" },
         "provisioned_reasoning_engine": { "reasoning_engine": "${REASONING_ENGINE}" },
-        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}" ]
+        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT_NUMBER}/locations/global/authorizations/${AUTH_ID}" ]
       }
     }
 EOF
@@ -78,7 +87,7 @@ else
       "adk_agent_definition": {
         "tool_settings": { "tool_description": "${TOOL_DESCRIPTION}" },
         "provisioned_reasoning_engine": { "reasoning_engine": "${REASONING_ENGINE}" },
-        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}" ]
+        "authorizations": [ "projects/${GOOGLE_CLOUD_PROJECT_NUMBER}/locations/global/authorizations/${AUTH_ID}" ]
       }
     }
 EOF

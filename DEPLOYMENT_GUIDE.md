@@ -68,11 +68,11 @@ SERVICENOW_CLIENT_SECRET=your-servicenow-client-secret
 
 # Agent Configuration
 AGENT_NAME=servicenow_agent
-AGENT_DISPLAY_NAME=ServiceNow Agent
-AGENT_DESCRIPTION=An AI agent for managing ServiceNow records through natural language
-TOOL_DESCRIPTION=A tool to perform Create, Read, Update, and Delete operations on ServiceNow records.
+AGENT_DISPLAY_NAME="ServiceNow Agent"
+AGENT_DESCRIPTION="An AI agent for managing ServiceNow records through natural language"
+TOOL_DESCRIPTION="A tool to perform Create, Read, Update, and Delete operations on ServiceNow records."
 AGENT_MODEL=gemini-2.5-flash
-AGENT_VERSION=1.0.0
+AGENT_VERSION=20250918.1
 
 # GCP Authorization Configuration
 AUTH_ID=servicenow-oauth-auth
@@ -84,11 +84,8 @@ The deployment is a three-step process orchestrated by the `deploy.sh` script:
 
 ### Quick Deploy
 ```bash
-# Set your project ID
-export PROJECT_ID=your-gcp-project
-
 # Run the deployment script
-./deploy.sh
+./scripts/deploy.sh
 ```
 
 ### What the Script Does
@@ -104,6 +101,7 @@ export PROJECT_ID=your-gcp-project
 - Links to the ServiceNow OAuth endpoints
 
 #### Step 3: Patch Agent with Authorization
+- Dynamically retrieves the project number from the project ID
 - Links the deployed agent to the authorization resource
 - Enables the agent to use OAuth for ServiceNow access
 
@@ -112,13 +110,16 @@ export PROJECT_ID=your-gcp-project
 If you need to run the steps individually:
 
 ```bash
-# Step 1: Deploy the agent
-REASONING_ENGINE_URI=$(python deploy_to_agent_engine.py)
+# Step 1: Deploy the agent (output will be shown via tee)
+TEMP_OUTPUT=$(mktemp)
+python deploy_to_agent_engine.py 2>&1 | tee "$TEMP_OUTPUT"
+REASONING_ENGINE_URI=$(tail -n 1 "$TEMP_OUTPUT")
+rm -f "$TEMP_OUTPUT"
 
 # Step 2: Create authorization
 ./scripts/create_authorization.sh
 
-# Step 3: Link agent to authorization
+# Step 3: Link agent to authorization (automatically gets project number)
 export REASONING_ENGINE=$REASONING_ENGINE_URI
 ./scripts/create_or_patch_agent.sh
 ```
@@ -215,9 +216,10 @@ Test with these ServiceNow operations:
 ## Important Notes
 
 1. **OAuth Flow**: The agent uses OAuth 2.0 client credentials flow, not username/password
-2. **Environment Variables**: Critical variables like AUTH_ID must be set for proper operation
-3. **Runtime Token Management**: The agent retrieves OAuth tokens at runtime from GCP
-4. **No Local Testing**: OAuth flow requires deployment to Agent Engine
+2. **Project Number**: Automatically retrieved from project ID during deployment - no manual configuration needed
+3. **Environment Variables**: Critical variables like AUTH_ID must be set for proper operation
+4. **Runtime Token Management**: The agent retrieves OAuth tokens at runtime from GCP
+5. **No Local Testing**: OAuth flow requires deployment to Agent Engine
 
 ## Support
 

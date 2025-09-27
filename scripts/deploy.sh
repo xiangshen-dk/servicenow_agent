@@ -28,18 +28,7 @@ fi
 
 # Load environment variables
 echo "Loading configuration from .env..."
-set +a
-while IFS='=' read -r key value; do
-    [[ "$key" =~ ^#.*$ ]] && continue
-    [[ -z "$key" ]] && continue
-    key=$(echo "$key" | xargs)
-    # Strip quotes from value
-    value="${value#[\"\']}"
-    value="${value%[\"\']}"
-    value=$(echo "$value" | xargs)
-    export "$key=$value"
-done < snow_agent/.env
-set -a
+source snow_agent/.env
 
 # Validate required variables
 if [ -z "${GOOGLE_CLOUD_PROJECT:-}" ]; then
@@ -73,15 +62,16 @@ fi
 
 # --- DEPLOYMENT WORKFLOW ---
 
-echo ""
-echo -e "${YELLOW}STEP 1: Deploying to Agent Engine...${NC}"
-DEPLOYMENT_OUTPUT=$(python deploy_to_agent_engine.py 2>&1)
-if [ $? -ne 0 ]; then
+echo -e "\n${YELLOW}STEP 1: Deploying to Agent Engine...${NC}"
+TEMP_OUTPUT=$(mktemp)
+python deploy_to_agent_engine.py 2>&1 | tee "$TEMP_OUTPUT"
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo -e "${RED}❌ Deployment failed${NC}"
-    echo "$DEPLOYMENT_OUTPUT"
+    rm -f "$TEMP_OUTPUT"
     exit 1
 fi
-REASONING_ENGINE_URI=$(echo "$DEPLOYMENT_OUTPUT" | tail -n 1)
+REASONING_ENGINE_URI=$(tail -n 1 "$TEMP_OUTPUT")
+rm -f "$TEMP_OUTPUT"
 echo -e "${GREEN}✅ Deployed: $REASONING_ENGINE_URI${NC}"
 
 # Save URI to .env
@@ -89,8 +79,7 @@ grep -v "^REASONING_ENGINE=" snow_agent/.env > snow_agent/.env.tmp 2>/dev/null |
 echo "REASONING_ENGINE=$REASONING_ENGINE_URI" >> snow_agent/.env.tmp
 mv snow_agent/.env.tmp snow_agent/.env
 
-echo ""
-echo -e "${YELLOW}STEP 2: Creating Authorization...${NC}"
+echo -e "\n${YELLOW}STEP 2: Creating Authorization...${NC}"
 ./scripts/create_authorization.sh
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Authorization creation failed${NC}"
@@ -98,8 +87,7 @@ if [ $? -ne 0 ]; then
 fi
 echo -e "${GREEN}✅ Authorization created${NC}"
 
-echo ""
-echo -e "${YELLOW}STEP 3: Linking Agent to Authorization...${NC}"
+echo -e "\n${YELLOW}STEP 3: Linking Agent to Authorization...${NC}"
 export REASONING_ENGINE=$REASONING_ENGINE_URI
 ./scripts/create_or_patch_agent.sh
 if [ $? -ne 0 ]; then
@@ -108,9 +96,7 @@ if [ $? -ne 0 ]; then
 fi
 echo -e "${GREEN}✅ Agent linked${NC}"
 
-echo ""
-echo -e "${GREEN}🎉 Deployment complete!${NC}"
-echo ""
+echo -e "\n${GREEN}🎉 Deployment complete!${NC}\n"
 echo "Next steps:"
 echo "• Test in AgentSpace or Vertex AI console"
 echo "• Monitor logs in Cloud Console"

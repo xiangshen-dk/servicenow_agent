@@ -1,3 +1,10 @@
+"""
+ServiceNow data models for CRUD operations.
+
+This module defines the Pydantic models used for ServiceNow CRUD operations,
+including request/response models and record structures.
+"""
+
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel, Field
 from datetime import datetime

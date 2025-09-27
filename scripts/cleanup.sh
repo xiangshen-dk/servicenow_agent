@@ -63,23 +63,23 @@ for var in "${required_vars[@]}"; do
 done
 
 echo ""
-echo -e "${YELLOW}⚠️  WARNING: This will delete all deployed resources!${NC}"
+echo -e "${YELLOW}⚠️  WARNING: This script will help you delete deployed resources!${NC}"
 echo "   Project: $GOOGLE_CLOUD_PROJECT"
 echo "   Location: $GOOGLE_CLOUD_LOCATION"
 echo ""
-read -p "Are you sure you want to continue? (yes/no): " -r
-if [[ ! $REPLY =~ ^[Yy]es$ ]]; then
-    echo "Cleanup cancelled."
-    exit 0
-fi
-
+echo "You will be asked to confirm each deletion step."
 echo ""
-echo "Starting cleanup process..."
 
 # --- Step 1: Delete Agent from AgentSpace (if configured) ---
 if [ -n "${AS_APP:-}" ] && [ -n "${ASSISTANT_ID:-}" ] && [ -n "${AGENT_NAME:-}" ]; then
     echo ""
-    echo -e "${YELLOW}STEP 1: Removing Agent from AgentSpace...${NC}"
+    echo -e "${YELLOW}STEP 1: Agent from AgentSpace${NC}"
+    echo "   Agent: ${AGENT_DISPLAY_NAME:-$AGENT_NAME}"
+    echo "   AgentSpace App: $AS_APP"
+    read -p "Do you want to delete this agent from AgentSpace? (yes/no): " -r
+    if [[ ! $REPLY =~ ^[Yy]es$ ]]; then
+        echo "Skipping AgentSpace agent deletion."
+    else
     
     AUTH_TOKEN=$(gcloud auth print-access-token)
     DISCOVERY_ENGINE_API_BASE_URL="https://discoveryengine.googleapis.com"
@@ -127,6 +127,7 @@ if [ -n "${AS_APP:-}" ] && [ -n "${ASSISTANT_ID:-}" ] && [ -n "${AGENT_NAME:-}" 
     else
         echo "No agent found in AgentSpace to delete"
     fi
+    fi
 else
     echo ""
     echo "STEP 1: Skipping AgentSpace cleanup (not configured)"
@@ -135,8 +136,12 @@ fi
 # --- Step 2: Delete GCP Authorization ---
 if [ -n "${AUTH_ID:-}" ]; then
     echo ""
-    echo -e "${YELLOW}STEP 2: Deleting GCP Authorization resource...${NC}"
+    echo -e "${YELLOW}STEP 2: GCP Authorization resource${NC}"
     echo "   Auth ID: $AUTH_ID"
+    read -p "Do you want to delete this authorization? (yes/no): " -r
+    if [[ ! $REPLY =~ ^[Yy]es$ ]]; then
+        echo "Skipping Authorization deletion."
+    else
     
     AUTH_TOKEN=$(gcloud auth print-access-token)
     DISCOVERY_ENGINE_API_BASE_URL="https://discoveryengine.googleapis.com/v1alpha"
@@ -177,6 +182,7 @@ if [ -n "${AUTH_ID:-}" ]; then
     else
         echo "No authorization found to delete"
     fi
+    fi
 else
     echo ""
     echo "STEP 2: Skipping Authorization cleanup (AUTH_ID not set)"
@@ -185,8 +191,12 @@ fi
 # --- Step 3: Delete Reasoning Engine ---
 if [ -n "${REASONING_ENGINE:-}" ]; then
     echo ""
-    echo -e "${YELLOW}STEP 3: Deleting Reasoning Engine (Agent Engine)...${NC}"
+    echo -e "${YELLOW}STEP 3: Reasoning Engine (Agent Engine)${NC}"
     echo "   URI: $REASONING_ENGINE"
+    read -p "Do you want to delete this reasoning engine? (yes/no): " -r
+    if [[ ! $REPLY =~ ^[Yy]es$ ]]; then
+        echo "Skipping Reasoning Engine deletion."
+    else
     
     # Extract the resource name from the URI
     # Format: projects/PROJECT_ID/locations/LOCATION/reasoningEngines/ENGINE_ID
@@ -233,6 +243,7 @@ if [ -n "${REASONING_ENGINE:-}" ]; then
         echo -e "${RED}❌ Could not parse REASONING_ENGINE URI${NC}"
         echo "   Please delete the reasoning engine manually"
     fi
+    fi
 else
     echo ""
     echo "STEP 3: Skipping Reasoning Engine cleanup (REASONING_ENGINE not set)"
@@ -241,11 +252,10 @@ fi
 
 # --- Step 4: Optional - Clean up staging bucket ---
 echo ""
-echo -e "${YELLOW}STEP 4: Staging Bucket Cleanup${NC}"
+echo -e "${YELLOW}STEP 4: Staging Bucket${NC}"
 BUCKET_NAME="${GOOGLE_CLOUD_PROJECT}-agent-staging"
 echo "   Bucket: gs://$BUCKET_NAME"
-
-read -p "Do you want to delete the staging bucket? (yes/no): " -r
+read -p "Do you want to delete this staging bucket? (yes/no): " -r
 if [[ $REPLY =~ ^[Yy]es$ ]]; then
     if gsutil ls -b gs://${BUCKET_NAME} &> /dev/null; then
         echo "Deleting staging bucket..."
@@ -263,12 +273,3 @@ else
 fi
 
 echo ""
-echo -e "${GREEN}🎉 Cleanup complete!${NC}"
-echo ""
-echo "Summary:"
-echo "- AgentSpace agent: Removed (if configured)"
-echo "- GCP Authorization: Deleted"
-echo "- Reasoning Engine: Deleted"
-echo "- Staging bucket: Based on your choice"
-echo ""
-echo "All deployed resources have been cleaned up."

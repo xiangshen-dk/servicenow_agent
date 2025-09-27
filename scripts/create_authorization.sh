@@ -39,11 +39,7 @@ TOKEN_URI="${SERVICENOW_INSTANCE_URL}/oauth_token.do"
 
 # The authorization URI is not used in the client credentials flow, but it's a required field in the API.
 # We'll use the token URI as a placeholder.
-# AUTHORIZATION_URI="${SERVICENOW_INSTANCE_URL}/oauth_auth.do?response_type=code"
-#ENCODED_SCOPES="incident_write"
 AUTHORIZATION_URI="${SERVICENOW_INSTANCE_URL}/oauth_auth.do?response_type=code&access_type=offline&prompt=consent"
-
-
 
 # Create the JSON payload
 JSON_PAYLOAD=$(cat <<EOF
@@ -67,27 +63,6 @@ response=$(curl -s -w "\n%{http_code}" -X POST \
      "${DISCOVERY_ENGINE_API_BASE_URL}/projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations?authorizationId=${AUTH_ID}" \
      -d "${JSON_PAYLOAD}")
 
-# To get an authorization:
-#curl -X GET \
-#-H "Authorization: Bearer $(gcloud auth print-access-token)" \
-#-H "Content-Type: application/json" \
-#-H "X-Goog-User-Project:$ ${GOOGLE_CLOUD_PROJECT}" \
-#"https://discoveryengine.googleapis.com/v1alpha/projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}"
-
-# To delete one:
-#curl -X DELETE \
-#-H "Authorization: Bearer $(gcloud auth print-access-token)" \
-#-H "Content-Type: application/json" \
-#-H "X-Goog-User-Project:$ ${GOOGLE_CLOUD_PROJECT}" \
-#"https://discoveryengine.googleapis.com/v1alpha/projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}"
-
-# To update:
-#    curl -X PATCH \
-#    -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-#    -H "Content-Type: application/json" \
-#    -H "X-Goog-User-Project:$ ${GOOGLE_CLOUD_PROJECT}" \
-#    "https://discoveryengine.googleapis.com/v1alpha/projects/${GOOGLE_CLOUD_PROJECT}/locations/global/authorizations/${AUTH_ID}" \
-#    -d "${JSON_PAYLOAD}"
 
 # Extract response body and status code
 http_code=$(echo "$response" | tail -n1)

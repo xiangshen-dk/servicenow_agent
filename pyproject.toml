@@ -5,7 +5,7 @@ description = "ServiceNow agent for Google AgentSpace using ADK"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "google-adk>=1.14.1",
+    "google-adk>=1.15.0",
     "google-cloud-aiplatform[adk,agent-engines]>=1.114.0",
     "httpx>=0.27.0",
     "pydantic>=2.11.9",
