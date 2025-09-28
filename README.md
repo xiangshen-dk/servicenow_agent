@@ -24,7 +24,7 @@ An AI-powered agent that enables natural language interaction with ServiceNow in
 1. **Clone and install**:
 ```bash
 git clone <repository-url>
-cd servicenow-agent
+cd servicenow_agent
 pip install uv
 uv sync
 source .venv/bin/activate
