@@ -16,11 +16,15 @@ from pathlib import Path
 # Add the project root to Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# CRITICAL: Load environment variables BEFORE importing the agent
+# This ensures the agent has access to all required environment variables during creation
+from dotenv import load_dotenv
+load_dotenv("snow_agent/.env")
+
 from google.cloud import aiplatform
 import vertexai
 from vertexai import agent_engines
-from snow_agent.agent import root_agent  # Import root_agent directly
-from dotenv import load_dotenv
+from snow_agent.agent import root_agent  # Import root_agent - now with env vars loaded
 import copy
 
 # Configure logging
