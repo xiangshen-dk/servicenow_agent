@@ -7,7 +7,6 @@ class ServiceNowSettings(BaseSettings):
     """ServiceNow configuration settings."""
     
     instance_url: str = Field(
-        default="https://ven04789.service-now.com",
         description="ServiceNow instance URL (e.g., https://dev123456.service-now.com)"
     )
     
@@ -44,8 +43,12 @@ class ServiceNowSettings(BaseSettings):
     class Config:
         env_prefix = "SERVICENOW_"
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"  # Ignore extra fields from .env
+        # This allows the settings to work even if .env file doesn't exist
+        # (e.g., in deployed environment where env vars are set differently)
+        env_file_optional = True
 
 
 class AgentSettings(BaseSettings):
@@ -78,5 +81,9 @@ class AgentSettings(BaseSettings):
     class Config:
         env_prefix = "AGENT_"
         env_file = ".env"
+        env_file_encoding = "utf-8"
         case_sensitive = False
         extra = "ignore"  # Ignore extra fields from .env
+        # This allows the settings to work even if .env file doesn't exist
+        # (e.g., in deployed environment where env vars are set differently)
+        env_file_optional = True
